@@ -9,6 +9,8 @@ import sys
 import warnings
 import common
 import network_utils as networkUtils
+import copy
+
 
 '''
     The main file of NetAdapt.
@@ -45,7 +47,7 @@ network_utils_all = sorted(name for name in networkUtils.__dict__
 
 def _launch_worker(worker_folder, model_path, block, resource_type, constraint, netadapt_iteration,
                    short_term_fine_tune_iteration, input_data_shape, job_list, available_gpus, 
-                   lookup_table_path, dataset_path, model_arch):
+                   lookup_table_path, dataset_path, model_arch, device_number_per_worker):
     '''
         `master.py` launches several `worker.py`.
         Each `worker.py` prunes one specific block and fine-tune it.
@@ -82,7 +84,7 @@ def _launch_worker(worker_folder, model_path, block, resource_type, constraint, 
                            common.WORKER_LOG_FILENAME_TEMPLATE.format(netadapt_iteration, block)), 'w') as file_id:
         command_list = [sys.executable, _WORKER_PY_FILENAME, worker_folder, model_path, str(block), resource_type,
                         str(constraint), str(netadapt_iteration), str(short_term_fine_tune_iteration), str(gpu),
-                        lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] + [str(args.finetune_lr)]
+                        lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] + [str(args.finetune_lr)] + [str(args.device_number_per_worker)]
         
         print(command_list)
         
@@ -165,6 +167,117 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
     print('Best block id: {}\n'.format(best_block))
 
     return best_accuracy, best_model_path, best_resource, best_block
+
+
+def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, starting_accuracy, starting_resource,
+                                            device_number_per_worker):
+    '''
+        After all workers finish jobs, select the network with best accuracy-to-resource ratio after metric fusion.
+        
+        Input:
+            `worker_folder`: (string) directory where `worker.py` will save models.
+            `iteration`: (int) NetAdapt iteration.
+            `num_blocks`: (int) num of simplifiable blocks at each iteration.
+            `starting_accuracy`: (float) initial accuracy before pruning and fine-tuning.
+            `start_resource`: (float) initial resource sonsumption.
+            `device_number_per_worker`: (int).
+        
+        Output:
+            `best_accuracy`: (float) accuracy of the best pruned network.
+            `best_model_path`: (string) path to the best model.
+            `best_resource`: (float) resource consumption of the best network.
+            `best_block`: (int) block index of the best network.
+    '''
+    
+    best_ratio = float('Inf')
+    best_accuracy = 0.0
+    best_model_path = None
+    best_resource = None
+    best_block = None
+    for block_idx in range(num_blocks):
+        vaild_device_num = 0.0
+        accuracy_sum = 0.0
+        resource_sum = 0.0
+        for worker_idx in range(device_number_per_worker):
+            with open(os.path.join(worker_folder, common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(iteration, block_idx,
+                      worker_idx)), 'r') as file_id:
+                accuracy = float(file_id.read())
+            with open(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
+                      worker_idx )), 'r') as file_id:
+                resource = float(file_id.readline())
+            # Metric fusion
+            if resource < starting_resource:
+                vaild_device_num += 1
+                accuracy_sum += accuracy
+                resource_sum += resource
+        
+        if vaild_device_num < 1:
+            continue
+        
+        accuracy = accuracy_sum / vaild_device_num
+        resource = resource_sum / vaild_device_num
+
+        #ratio_resource_accuracy = (starting_accuracy - accuracy) / (starting_resource - resource + 1e-5)
+        ratio_resource_accuracy = (starting_accuracy - accuracy + 1e-6) / (starting_resource - resource + 1e-5)
+        
+        print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
+        if resource < starting_resource and ratio_resource_accuracy < best_ratio:
+        #if resource < starting_resource and accuracy > best_accuracy:
+            best_ratio = ratio_resource_accuracy
+            best_accuracy = accuracy
+            # best_model_path = os.path.join(worker_folder,
+            #                                common.WORKER_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx))
+            best_resource = resource
+            best_block = block_idx
+    print('Best block id: {}\n'.format(best_block))
+
+    return best_accuracy, best_resource, best_block
+
+def _fed_avg(w):
+    w_avg = copy.deepcopy(w[0])
+    for k in w_avg.keys():
+        for i in range(1, len(w)):
+            w_avg[k] += w[i][k]
+        w_avg[k] = torch.div(w_avg[k], len(w))
+    return w_avg
+
+def _model_fusion(worker_folder, iteration, block_idx, device_number_per_worker):
+    '''
+        Fuse model generate from different devices from best_block worker.
+        
+        Input:
+            `worker_folder`: (string) directory where `worker.py` will save models.
+            `iteration`: (int) NetAdapt iteration.
+            `block_idx`: (int) block index of the best network.
+            `device_number_per_worker`: (int).
+            
+
+        Output:
+            `best_model_path`: (string) path to the best model generated from model fusion.
+    '''
+    if device_number_per_worker < 1:
+        return None
+    best_model_path = os.path.join(worker_folder,
+                                   common.WORKER_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx))
+    w_array = []
+
+    for device_idx in range(device_number_per_worker):
+        model_path = os.path.join(worker_folder,
+                                  common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, device_idx))
+        model = torch.load(model_path)
+        s1 = model.state_dict()
+        w_array.append(copy.deepcopy(s1))
+        del model
+
+    w_glob = _fed_avg(w_array)
+
+    model_path = os.path.join(worker_folder,
+                              common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, 0))
+    model = torch.load(model_path)
+    model.load_state_dict(w_glob)
+
+    torch.save(model, best_model_path)
+    return best_model_path
 
 
 def _save_and_print_history(network_utils, history, pickle_file_path, text_file_path):
@@ -357,7 +470,7 @@ def master(args):
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch)
+                                                      args.dataset_path, args.arch, args.device_number_per_worker)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
@@ -367,10 +480,19 @@ def master(args):
             time.sleep(_SLEEP_TIME)
             job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
 
-        # Find the best model.
-        best_accuracy, best_model_path, best_resource, best_block = (
-            _find_best_model(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), current_accuracy,
-                             current_resource))
+        # # Find the best model.
+        # best_accuracy, best_model_path, best_resource, best_block = (
+        #     _find_best_model(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), current_accuracy,
+        #                      current_resource))
+
+        # Find best model by metric fusion
+        best_accuracy, best_resource, best_block = (
+            _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
+                                                  current_accuracy, current_resource, args.device_number_per_worker))
+        
+        # Model fusion, and generate best model at best model path
+        best_model_path = _model_fusion(worker_folder, current_iter, best_block, args.device_number_per_worker)
+
 
         # Check whether the target_resource is achieved.
         if not best_model_path:
@@ -383,16 +505,18 @@ def master(args):
         current_model_path = os.path.join(master_folder,
                                           common.MASTER_MODEL_FILENAME_TEMPLATE.format(current_iter))
         copyfile(best_model_path, current_model_path)
+        #os.remove(best_model_path)
         current_accuracy = best_accuracy
         current_resource = best_resource
         current_block = best_block
         
         if args.save_interval == -1 or (current_iter % args.save_interval != 0):
             for block_idx in range(network_utils.get_num_simplifiable_blocks()):
-                temp_model_path = os.path.join(worker_folder, common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
-                os.remove(temp_model_path)
-                print('Remove', temp_model_path)
-            print(' ')
+                for worker_idx in range(args.device_number_per_worker):
+                    temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
+                    os.remove(temp_model_path)
+                    print('Remove', temp_model_path)
+                print(' ')
 
         # Save and print the history.
         model = torch.load(current_model_path)
@@ -462,6 +586,9 @@ if __name__ == '__main__':
     
     arg_parser.add_argument('-si', '--save_interval', type=int, default=-1,
                             help='Interval of iterations that all pruned models at the same iteration will be saved. Use `-1` to save only the best model at each iteration. Use `1` to save all models at each iteration. (default: -1).')
+    
+    arg_parser.add_argument('-dw', '--device_number_per_worker', type=int, default=3, 
+                            help='Device number per worker.')
     
     print(network_utils_all)
     

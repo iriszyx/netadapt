@@ -3,7 +3,9 @@ import torch
 import os
 import common 
 import constants 
+import copy
 import network_utils as networkUtils
+import numpy as np
 
 '''
     Launched by `master.py`
@@ -37,7 +39,10 @@ def worker(args):
 
     # Get the network utils.
     model = torch.load(args.model_path)
-    network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
+    if args.arch == 'mobilenetfed':
+        network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr, args.device_number)
+    else:
+        network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
     
     if network_utils.get_num_simplifiable_blocks() <= args.block:
         raise ValueError("Block index >= number of simplifiable blocks")
@@ -58,29 +63,48 @@ def worker(args):
     print('Simplified model:')
     print(simplified_model)
     
-    fine_tuned_model = network_utils.fine_tune(simplified_model, args.short_term_fine_tune_iteration)
-    fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
-    print('Accuracy after finetune:', fine_tuned_accuracy)
-    
-    # Save the results.
-    torch.save(fine_tuned_model,
-               os.path.join(args.worker_folder,
-                            common.WORKER_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)))
-    with open(os.path.join(args.worker_folder,
-                           common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
-              'w') as file_id:
-        file_id.write(str(fine_tuned_accuracy))
-    with open(os.path.join(args.worker_folder,
-                           common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
-              'w') as file_id:
-        file_id.write(str(simplified_resource))
-    with open(os.path.join(args.worker_folder,
-                           common.WORKER_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
-              'w') as file_id:
-        file_id.write('finished.')
+    for i in range(args.device_number):
+        print('Start device ', i)
+        device_model = copy.deepcopy(simplified_model)
+        if args.arch == 'mobilenetfed':
+            fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, i)
+        else:
+            fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration)
+        fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
+        print('Accuracy after finetune:', fine_tuned_accuracy)
+        # TODO(zhaoyx): measure/simulate latency for different devices.
+        latency = abs(np.random.normal(1))
+
+        # Save the results.
+        torch.save(fine_tuned_model,
+                   os.path.join(args.worker_folder,
+                                common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)))
+        with open(os.path.join(args.worker_folder,
+                               common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+                  'w') as file_id:
+            file_id.write(str(fine_tuned_accuracy))
+        with open(os.path.join(args.worker_folder,
+                               common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+                  'w') as file_id:
+            file_id.write(str(simplified_resource))
+            file_id.write("\n")
+            file_id.write(str(latency))
+        with open(os.path.join(args.worker_folder,
+                               common.WORKER_DEVICE_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+                  'w') as file_id:
+            file_id.write('finished.')
+
+        # release GPU memory
+        del fine_tuned_model
+        print('End device ', i)
 
     # release GPU memory
-    del simplified_model, fine_tuned_model
+    del simplified_model
+    print ("End this Worker")
+    with open(os.path.join(args.worker_folder,
+                               common.WORKER_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
+                  'w') as file_id:
+        file_id.write('finished.')
     return 
 
 if __name__ == '__main__':
@@ -104,6 +128,7 @@ if __name__ == '__main__':
                         ' | '.join(network_utils_all) +
                         ' (default: alexnet)')
     arg_parser.add_argument('finetune_lr', type=float, default=0.001, help='short-term fine-tune learning rate')
+    arg_parser.add_argument('device_number', type=int, default=10, help='number of devices used in this worker')
     args = arg_parser.parse_args()
 
     # Launch a worker.
