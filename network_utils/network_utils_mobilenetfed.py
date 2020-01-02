@@ -43,29 +43,28 @@ _MEASURE_LATENCY_SAMPLE_TIMES = 500
 '''
 _MEASURE_LATENCY_BATCH_SIZE = 128
 
-class DatasetSplit(Dataset):
-    def __init__(self, dataset, idxs):
-        self.dataset = dataset
-        self.idxs = list(idxs)
+# class DatasetSplit(Dataset):
+#     def __init__(self, dataset, idxs):
+#         self.dataset = dataset
+#         self.idxs = list(idxs)
 
-    def __len__(self):
-        return len(self.idxs)
+#     def __len__(self):
+#         return len(self.idxs)
 
-    def __getitem__(self, item):
-        image, label = self.dataset[self.idxs[item]]
-        return image, label
+#     def __getitem__(self, item):
+#         image, label = self.dataset[self.idxs[item]]
+#         return image, label
 
 
 class networkUtils_mobilenetfed(NetworkUtilsAbstract):
     num_simplifiable_blocks = None
     input_data_shape = None
-    train_dataset = None
-    train_loader = None
-    holdout_loader = None
-    val_loader = None
+    #train_dataset = None
+    #train_loader = None
+    #holdout_loader = None
     optimizer = None
 
-    def __init__(self, model, input_data_shape, dataset_path, finetune_lr=1e-3, device_number=3):
+    def __init__(self, model, input_data_shape, dataset_path, finetune_lr=1e-3):
         '''
             Initialize:
                 (1) network definition 'network_def'
@@ -113,43 +112,43 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         self.weight_decay = 1e-4
         self.finetune_lr = finetune_lr
         
-        train_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
-        transform=transforms.Compose([
-            transforms.RandomCrop(32, padding=4), 
-            transforms.Resize(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
+        # train_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
+        # transform=transforms.Compose([
+        #     transforms.RandomCrop(32, padding=4), 
+        #     transforms.Resize(224),
+        #     transforms.RandomHorizontalFlip(),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        # ]))
 
-        self.train_dataset = train_dataset
+        # self.train_dataset = train_dataset
         
-        train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=self.batch_size, 
-        num_workers=self.num_workers, pin_memory=True, shuffle=True)
-        self.train_loader = train_loader
+        # train_loader = torch.utils.data.DataLoader(
+        # train_dataset, batch_size=self.batch_size, 
+        # num_workers=self.num_workers, pin_memory=True, shuffle=True)
+        # self.train_loader = train_loader
         
-        val_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
-        transform=transforms.Compose([
-            transforms.Resize(224), 
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
-        val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=self.batch_size, shuffle=False,
-        num_workers=self.num_workers, pin_memory=True)
-        self.val_loader = val_loader   
+        # val_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
+        # transform=transforms.Compose([
+        #     transforms.Resize(224), 
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        # ]))
+        # val_loader = torch.utils.data.DataLoader(
+        # val_dataset, batch_size=self.batch_size, shuffle=False,
+        # num_workers=self.num_workers, pin_memory=True)
+        # self.val_loader = val_loader   
         
         self.criterion = torch.nn.BCEWithLogitsLoss()
         self.optimizer = torch.optim.SGD(model.parameters(),
                                          finetune_lr, momentum=self.momentum, weight_decay=self.weight_decay)
 
-        self.device_number = device_number
-        num_items = int(len(self.train_dataset)/(self.device_number*10))
-        self.dict_users, all_idxs = {}, [i for i in range(len(self.train_dataset))]
-        for i in range(self.device_number):
-            self.dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
-            all_idxs = list(set(all_idxs) - self.dict_users[i])
+        # self.device_number = device_number
+        # num_items = int(len(self.train_dataset)/(self.device_number*10))
+        # self.dict_users, all_idxs = {}, [i for i in range(len(self.train_dataset))]
+        # for i in range(self.device_number):
+        #     self.dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
+        #     all_idxs = list(set(all_idxs) - self.dict_users[i])
         
 
     def _get_layer_by_param_name(self, model, param_name):
@@ -267,7 +266,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         return self.num_simplifiable_blocks
     
 
-    def fine_tune(self, model, iterations, device_idx, print_frequency=100):
+    def fine_tune(self, model, iterations, train_loader, print_frequency=100):
         '''
             short-term fine-tune a simplified model
             
@@ -286,10 +285,6 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                                          momentum=self.momentum, weight_decay=self.weight_decay)
         model = model.cuda()
         model.train()
-        print(len(DatasetSplit(self.train_dataset, self.dict_users[device_idx])))
-        train_loader = torch.utils.data.DataLoader(
-            DatasetSplit(self.train_dataset, self.dict_users[device_idx]), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         dataloader_iter = iter(train_loader)
         for i in range(iterations):
@@ -319,7 +314,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         return model
     
 
-    def evaluate(self, model, print_frequency=10):
+    def evaluate(self, model, val_loader, print_frequency=10):
         '''
             Evaluate the accuracy of the model
             
@@ -336,7 +331,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         acc = .0
         num_samples = .0
         with torch.no_grad():
-            for i, (input, target) in enumerate(self.val_loader):
+            for i, (input, target) in enumerate(val_loader):
                 input, target = input.cuda(), target.cuda()
                 pred = model(input)
                 pred = pred.argmax(dim=1)
@@ -345,7 +340,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                 num_samples += pred.shape[0]
                 
                 if i % print_frequency == 0:
-                    fns.update_progress(i, len(self.val_loader))
+                    fns.update_progress(i, len(val_loader))
                     print(' ')
         print(' ')
         print('Test accuracy: {:4.2f}% '.format(float(acc/num_samples*100)))
@@ -353,5 +348,5 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         return acc/num_samples*100
     
 
-def mobilenetfed(model, input_data_shape, dataset_path, finetune_lr=1e-3, device_number=3):
-    return networkUtils_mobilenetfed(model, input_data_shape, dataset_path, finetune_lr, device_number)
+def mobilenetfed(model, input_data_shape, dataset_path, finetune_lr=1e-3):
+    return networkUtils_mobilenetfed(model, input_data_shape, dataset_path, finetune_lr)

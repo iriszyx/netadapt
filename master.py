@@ -9,6 +9,7 @@ import sys
 import warnings
 import common
 import network_utils as networkUtils
+import data_loader as dataLoader
 import copy
 
 
@@ -44,10 +45,16 @@ network_utils_all = sorted(name for name in networkUtils.__dict__
     if name.islower() and not name.startswith("__")
     and callable(networkUtils.__dict__[name]))
 
+# Supported data_loaders
+data_loader_all = sorted(name for name in dataLoader.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(dataLoader.__dict__[name]))
 
-def _launch_worker(worker_folder, model_path, block, resource_type, constraint, netadapt_iteration,
+
+def _launch_worker(master_folder,
+                   worker_folder, model_path, block, resource_type, constraint, netadapt_iteration,
                    short_term_fine_tune_iteration, input_data_shape, job_list, available_gpus, 
-                   lookup_table_path, dataset_path, model_arch, device_number_per_worker):
+                   lookup_table_path, dataset_path, model_arch):
     '''
         `master.py` launches several `worker.py`.
         Each `worker.py` prunes one specific block and fine-tune it.
@@ -82,9 +89,13 @@ def _launch_worker(worker_folder, model_path, block, resource_type, constraint, 
     print('  Launch a worker for block {}'.format(block))
     with open(os.path.join(worker_folder,
                            common.WORKER_LOG_FILENAME_TEMPLATE.format(netadapt_iteration, block)), 'w') as file_id:
-        command_list = [sys.executable, _WORKER_PY_FILENAME, worker_folder, model_path, str(block), resource_type,
+        command_list = [sys.executable, _WORKER_PY_FILENAME, master_folder, worker_folder, model_path, str(block), resource_type,
                         str(constraint), str(netadapt_iteration), str(short_term_fine_tune_iteration), str(gpu),
-                        lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] + [str(args.finetune_lr)] + [str(args.device_number_per_worker)]
+                        lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] +\
+                        [str(args.finetune_lr)] +\
+                        [str(args.device_number)] + [str(args.group_number)] + [str(args.dataset)]
+
+
         
         print(command_list)
         
@@ -170,7 +181,7 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
 
 
 def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, starting_accuracy, starting_resource,
-                                            device_number_per_worker):
+                                            group_len):
     '''
         After all workers finish jobs, select the network with best accuracy-to-resource ratio after metric fusion.
         
@@ -180,7 +191,7 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
             `num_blocks`: (int) num of simplifiable blocks at each iteration.
             `starting_accuracy`: (float) initial accuracy before pruning and fine-tuning.
             `start_resource`: (float) initial resource sonsumption.
-            `device_number_per_worker`: (int).
+            `group_len`: (list[int]) num of workers of every group.
         
         Output:
             `best_accuracy`: (float) accuracy of the best pruned network.
@@ -198,7 +209,8 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
         vaild_device_num = 0.0
         accuracy_sum = 0.0
         resource_sum = 0.0
-        for worker_idx in range(device_number_per_worker):
+        worker_num = group_len[block_idx%len(group_len)]
+        for worker_idx in range(worker_num):
             with open(os.path.join(worker_folder, common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx)), 'r') as file_id:
                 accuracy = float(file_id.read())
@@ -241,7 +253,7 @@ def _fed_avg(w):
         w_avg[k] = torch.div(w_avg[k], len(w))
     return w_avg
 
-def _model_fusion(worker_folder, iteration, block_idx, device_number_per_worker):
+def _model_fusion(worker_folder, iteration, block_idx, device_number):
     '''
         Fuse model generate from different devices from best_block worker.
         
@@ -249,19 +261,19 @@ def _model_fusion(worker_folder, iteration, block_idx, device_number_per_worker)
             `worker_folder`: (string) directory where `worker.py` will save models.
             `iteration`: (int) NetAdapt iteration.
             `block_idx`: (int) block index of the best network.
-            `device_number_per_worker`: (int).
+            `group_len`: (list[int]) num of workers of every group.
             
 
         Output:
             `best_model_path`: (string) path to the best model generated from model fusion.
     '''
-    if device_number_per_worker < 1:
+    if device_number < 1:
         return None
     best_model_path = os.path.join(worker_folder,
                                    common.WORKER_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx))
     w_array = []
 
-    for device_idx in range(device_number_per_worker):
+    for device_idx in range(device_number):
         model_path = os.path.join(worker_folder,
                                   common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, device_idx))
         model = torch.load(model_path)
@@ -433,9 +445,29 @@ def master(args):
         # Print the message.
         print(('Start from iteration {:>3}: current_accuracy = {:>8.3f}, '
                'current_resource = {:>8.3f}').format(current_iter, current_accuracy, current_resource))
-        
-        
+    
+    # Dataset loading and partition.
+    data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+    device_data_idxs = data_loader.generate_device_data(args.device_number,True)
+    group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
+    group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
+
+    print(device_data_idxs)
+
+    print(group_idxs)
+
+    with open(os.path.join(master_folder,
+                               common.MASTER_DATASET_SPLIT_FILENAME_TEMPLATE),
+                  'w') as file_id:
+            file_id.write(str(";").join([",".join([str(j) for j in i]) for i in device_data_idxs]))
+
+    with open(os.path.join(master_folder,
+                               common.MASTER_GROUP_FILENAME_TEMPLATE),
+                  'w') as file_id:
+            file_id.write(str(";").join([",".join([str(j) for j in i]) for i in group_idxs]))                   
+
     current_iter += 1
+
 
     # Start adaptation.
     while current_iter <= args.max_iters and current_resource > args.budget:
@@ -466,11 +498,12 @@ def master(args):
                 job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
 
             # Launch a worker.
-            job_list, available_gpus = _launch_worker(worker_folder, current_model_path, block_idx, args.resource_type,
+            job_list, available_gpus = _launch_worker(master_folder,
+                                                      worker_folder, current_model_path, block_idx, args.resource_type,
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch, args.device_number_per_worker)
+                                                      args.dataset_path, args.arch)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
@@ -488,10 +521,11 @@ def master(args):
         # Find best model by metric fusion
         best_accuracy, best_resource, best_block = (
             _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
-                                                  current_accuracy, current_resource, args.device_number_per_worker))
+                                                  current_accuracy, current_resource, group_len))
         
         # Model fusion, and generate best model at best model path
-        best_model_path = _model_fusion(worker_folder, current_iter, best_block, args.device_number_per_worker)
+        device_num =  group_len[best_block % len(group_len)]
+        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num)
 
 
         # Check whether the target_resource is achieved.
@@ -512,7 +546,8 @@ def master(args):
         
         if args.save_interval == -1 or (current_iter % args.save_interval != 0):
             for block_idx in range(network_utils.get_num_simplifiable_blocks()):
-                for worker_idx in range(args.device_number_per_worker):
+                device_num = group_len[block_idx % len(group_len)]
+                for worker_idx in range(device_num):
                     temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
                     os.remove(temp_model_path)
                     print('Remove', temp_model_path)
@@ -587,9 +622,19 @@ if __name__ == '__main__':
     arg_parser.add_argument('-si', '--save_interval', type=int, default=-1,
                             help='Interval of iterations that all pruned models at the same iteration will be saved. Use `-1` to save only the best model at each iteration. Use `1` to save all models at each iteration. (default: -1).')
     
-    arg_parser.add_argument('-dw', '--device_number_per_worker', type=int, default=3, 
-                            help='Device number per worker.')
-    
+    # Added parameters.
+    # arg_parser.add_argument('-dw', '--device_number_per_worker', type=int, default=3, 
+    #                         help='Device number per worker.')
+    arg_parser.add_argument('-dn', '--device_number', type=int, default=3, 
+                            help='Total device number.')
+    arg_parser.add_argument('-d', '--dataset',  default='cifar10', 
+                        choices=data_loader_all,
+                        help='dataset: ' +
+                        ' | '.join(data_loader_all) +
+                        ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
+    arg_parser.add_argument('-gn', '--group_number', type=int, default=13, 
+                            help='Group number.')
+
     print(network_utils_all)
     
     args = arg_parser.parse_args()

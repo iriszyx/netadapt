@@ -1,5 +1,7 @@
 # Master-related filenames.
 MASTER_MODEL_FILENAME_TEMPLATE = 'iter_{}_best_model.pth.tar'
+MASTER_DATASET_SPLIT_FILENAME_TEMPLATE = 'dataset_split_index.txt'
+MASTER_GROUP_FILENAME_TEMPLATE = 'group.txt'
 
 # Worker-related filenames.
 WORKER_MODEL_FILENAME_TEMPLATE = 'iter_{}_block_{}_model.pth.tar'

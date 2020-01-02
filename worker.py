@@ -5,6 +5,7 @@ import common
 import constants 
 import copy
 import network_utils as networkUtils
+import data_loader as dataLoader
 import numpy as np
 
 '''
@@ -18,6 +19,11 @@ import numpy as np
 network_utils_all = sorted(name for name in networkUtils.__dict__
     if name.islower() and not name.startswith("__")
     and callable(networkUtils.__dict__[name]))
+
+# Supported data_loaders
+data_loader_all = sorted(name for name in dataLoader.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(dataLoader.__dict__[name]))
 
 
 def worker(args):
@@ -62,14 +68,39 @@ def worker(args):
     print('')
     print('Simplified model:')
     print(simplified_model)
-    
-    for i in range(args.device_number):
+
+
+    devices = []
+    device_data_idxs = []
+
+    with open(os.path.join(args.master_folder, common.MASTER_GROUP_FILENAME_TEMPLATE),
+        'r') as file_id:
+        content = file_id.read()
+        content = content.split(';')
+        group_idxs = [list(map(int, i.split(','))) for i in content]
+        devices = group_idxs[args.block % len(group_idxs)]
+
+    print("Device number: "+ str(len(devices)))
+
+    # Load data and load master file.
+    with open(os.path.join(args.master_folder, common.MASTER_DATASET_SPLIT_FILENAME_TEMPLATE),
+        'r') as file_id:
+        content = file_id.read()
+        content = content.split(';')
+        device_data_idxs = [list(map(int, i.split(','))) for i in content]
+
+    data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+    data_loader.load(group_idxs, device_data_idxs)
+
+    for i in range(len(devices)):
         print('Start device ', i)
         device_model = copy.deepcopy(simplified_model)
         if args.arch == 'mobilenetfed':
-            fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, i)
+            train_loader = data_loader.training_data_loader(devices[i])
+            fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader)
         else:
             fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration)
+        val_loader = data_loader.validation_data_loader(devices[i])
         fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
         print('Accuracy after finetune:', fine_tuned_accuracy)
         # TODO(zhaoyx): measure/simulate latency for different devices.
@@ -110,6 +141,8 @@ def worker(args):
 if __name__ == '__main__':
     # Parse the input arguments.
     arg_parser = ArgumentParser()
+    arg_parser.add_argument('master_folder', type=str, 
+                            help='directory where to read master partition')
     arg_parser.add_argument('worker_folder', type=str, 
                             help='directory where model and logging information will be saved')
     arg_parser.add_argument('model_path', type=str, help='path to model which is to be simplified')
@@ -128,7 +161,15 @@ if __name__ == '__main__':
                         ' | '.join(network_utils_all) +
                         ' (default: alexnet)')
     arg_parser.add_argument('finetune_lr', type=float, default=0.001, help='short-term fine-tune learning rate')
-    arg_parser.add_argument('device_number', type=int, default=10, help='number of devices used in this worker')
+    arg_parser.add_argument('device_number', type=int, default=10, help='number of devices total')
+    arg_parser.add_argument('group_number', type=int, default=3, help='Group number.')
+    arg_parser.add_argument('dataset',  default='cifar10', 
+                        choices=data_loader_all,
+                        help='dataset: ' +
+                        ' | '.join(data_loader_all) +
+                        ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
+    
+
     args = arg_parser.parse_args()
 
     # Launch a worker.
