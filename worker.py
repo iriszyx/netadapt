@@ -45,10 +45,8 @@ def worker(args):
 
     # Get the network utils.
     model = torch.load(args.model_path)
-    if args.arch == 'mobilenetfed':
-        network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr, args.device_number)
-    else:
-        network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
+    
+    network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
     
     if network_utils.get_num_simplifiable_blocks() <= args.block:
         raise ValueError("Block index >= number of simplifiable blocks")
