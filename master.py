@@ -11,6 +11,9 @@ import common
 import network_utils as networkUtils
 import data_loader as dataLoader
 import copy
+import numpy as np
+import functools
+import random
 
 
 '''
@@ -245,15 +248,60 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
 
     return best_accuracy, best_resource, best_block
 
-def _fed_avg(w):
-    w_avg = copy.deepcopy(w[0])
-    for k in w_avg.keys():
-        for i in range(1, len(w)):
-            w_avg[k] += w[i][k]
-        w_avg[k] = torch.div(w_avg[k], len(w))
+# def _fed_avg_old(w):
+#     w_avg = copy.deepcopy(w[0])
+#     for k in w_avg.keys():
+#         for i in range(1, len(w)):
+#             w_avg[k] += w[i][k]
+#         w_avg[k] = torch.div(w_avg[k], len(w))
+#     return w_avg
+
+def _fed_avg(w, data_num):
+    w_avg = {k: [torch.mul(w[i][k], data_num[i]) for i in range(len(w))] for k in w[0]}
+    w_avg = {k: functools.reduce(lambda x,y: x + y, w_avg[k]) / np.sum(data_num) for k in w_avg}
     return w_avg
 
-def _model_fusion(worker_folder, iteration, block_idx, device_number):
+def need_fl_tune(iter_id, total_iter_num):
+    '''
+        Shall we run federated learning on the fused model (long-term fine-tune)?
+    '''
+    return iter_id == (total_iter_num - 1)
+
+def run_fl(model_path, data_loader, network_utils, skip_ratio=0.0):
+    '''
+        Run federated learning
+        Input:
+            'model_path': fused model's path, waiting to be fl-ed
+            'data_loader': data loader for devices
+        Output:
+            'fl_model_path': a new model path where fl-ed model is stored
+    '''
+    # print ('Run federated learning')
+    # state_sum = {}
+    # train_data_num = 0
+    # device_data_idxs = data_loader.device_data_idxs
+    # new_model_path = model_path + '_fl'
+    # model = torch.load(model_path)
+    # for device_id in range(len(device_data_idxs)):
+    #     if random.random() < skip_ratio: # skip this device
+    #         continue
+    #     train_loader = data_loader.training_data_loader(device_id)
+    #     device_model = copy.deepcopy(model)
+    #     fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader)
+    #     device_state = fine_tuned_model.state_dict()
+    #     for k in device_state:
+    #         if k not in state_sum:
+    #             state_sum[k] = torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
+    #         else:
+    #             state_sum[k] += torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
+    #     train_data_num += len(device_data_idxs[device_id])
+    #     del fine_tuned_model
+    # new_state = torch.div(state_sum, train_data_num)
+    # model.load_state_dict(new_state)
+    # torch.save(model, new_model_path)
+    return model_path
+
+def _model_fusion(worker_folder, iteration, block_idx, device_data_idxs):
     '''
         Fuse model generate from different devices from best_block worker.
         
@@ -261,19 +309,17 @@ def _model_fusion(worker_folder, iteration, block_idx, device_number):
             `worker_folder`: (string) directory where `worker.py` will save models.
             `iteration`: (int) NetAdapt iteration.
             `block_idx`: (int) block index of the best network.
-            `group_len`: (list[int]) num of workers of every group.
+            `device_data_idxs`: (list[int]) num of data of every device.
             
 
         Output:
             `best_model_path`: (string) path to the best model generated from model fusion.
     '''
-    if device_number < 1:
-        return None
     best_model_path = os.path.join(worker_folder,
                                    common.WORKER_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx))
     w_array = []
 
-    for device_idx in range(device_number):
+    for device_idx in range(len(device_data_idxs)):
         model_path = os.path.join(worker_folder,
                                   common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, device_idx))
         model = torch.load(model_path)
@@ -452,9 +498,9 @@ def master(args):
     group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
 
-    print(device_data_idxs)
+    #print(device_data_idxs)
 
-    print(group_idxs)
+    #print(group_idxs)
 
     with open(os.path.join(master_folder,
                                common.MASTER_DATASET_SPLIT_FILENAME_TEMPLATE),
@@ -525,7 +571,12 @@ def master(args):
         
         # Model fusion, and generate best model at best model path
         device_num =  group_len[best_block % len(group_len)]
-        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num)
+        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_data_idxs)
+
+
+        # Check if we need a long-term fine-tune (federated learning)
+        if need_fl_tune(current_iter, args.max_iters):
+            best_model_path = run_fl(best_model_path, data_loader, network_utils)
 
 
         # Check whether the target_resource is achieved.

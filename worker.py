@@ -7,6 +7,7 @@ import copy
 import network_utils as networkUtils
 import data_loader as dataLoader
 import numpy as np
+import datetime
 
 '''
     Launched by `master.py`
@@ -90,8 +91,10 @@ def worker(args):
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
     data_loader.load(group_idxs, device_data_idxs)
 
+    worker_begin = datetime.datetime.now()
     for i in range(len(devices)):
         print('Start device ', i)
+        device_begin = datetime.datetime.now()
         device_model = copy.deepcopy(simplified_model)
         if args.arch == 'mobilenetfed':
             train_loader = data_loader.training_data_loader(devices[i])
@@ -125,10 +128,14 @@ def worker(args):
 
         # release GPU memory
         del fine_tuned_model
+        device_end = datetime.datetime.now()
+        print ('Device running time: {} seconds'.format((device_end - device_begin).seconds))
         print('End device ', i)
 
     # release GPU memory
     del simplified_model
+    worker_end = datetime.datetime.now()
+    print ('Worker running time: {} seconds'.format((worker_end - worker_begin).seconds))
     print ("End this Worker")
     with open(os.path.join(args.worker_folder,
                                common.WORKER_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
