@@ -301,7 +301,7 @@ def run_fl(model_path, data_loader, network_utils, skip_ratio=0.0):
     # torch.save(model, new_model_path)
     return model_path
 
-def _model_fusion(worker_folder, iteration, block_idx, device_data_idxs):
+def _model_fusion(worker_folder, iteration, block_idx, device_num):
     '''
         Fuse model generate from different devices from best_block worker.
         
@@ -309,7 +309,7 @@ def _model_fusion(worker_folder, iteration, block_idx, device_data_idxs):
             `worker_folder`: (string) directory where `worker.py` will save models.
             `iteration`: (int) NetAdapt iteration.
             `block_idx`: (int) block index of the best network.
-            `device_data_idxs`: (list[int]) num of data of every device.
+            `device_num`: device numbers to be fused.
             
 
         Output:
@@ -319,7 +319,7 @@ def _model_fusion(worker_folder, iteration, block_idx, device_data_idxs):
                                    common.WORKER_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx))
     w_array = []
 
-    for device_idx in range(len(device_data_idxs)):
+    for device_idx in range(device_num):
         model_path = os.path.join(worker_folder,
                                   common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, device_idx))
         model = torch.load(model_path)
@@ -571,7 +571,7 @@ def master(args):
         
         # Model fusion, and generate best model at best model path
         device_num =  group_len[best_block % len(group_len)]
-        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_data_idxs)
+        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num)
 
 
         # Check if we need a long-term fine-tune (federated learning)
