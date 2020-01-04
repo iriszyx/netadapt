@@ -301,7 +301,7 @@ def run_fl(model_path, data_loader, network_utils, skip_ratio=0.0):
     # torch.save(model, new_model_path)
     return model_path
 
-def _model_fusion(worker_folder, iteration, block_idx, device_num):
+def _model_fusion(worker_folder, iteration, block_idx, device_num, data_num):
     '''
         Fuse model generate from different devices from best_block worker.
         
@@ -327,7 +327,7 @@ def _model_fusion(worker_folder, iteration, block_idx, device_num):
         w_array.append(copy.deepcopy(s1))
         del model
 
-    w_glob = _fed_avg(w_array)
+    w_glob = _fed_avg(w_array, data_num)
 
     model_path = os.path.join(worker_folder,
                               common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, 0))
@@ -570,8 +570,11 @@ def master(args):
                                                   current_accuracy, current_resource, group_len))
         
         # Model fusion, and generate best model at best model path
-        device_num =  group_len[best_block % len(group_len)]
-        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num)
+        group_id = best_block % len(group_len)
+        device_num =  group_len[group_id]
+        group_data_num = [len(device_data_idxs[d]) for d in group_idxs[group_id]]
+        print ('Group: {}, group device data: {}'.format(group_id, group_data_num))
+        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num, group_data_num)
 
 
         # Check if we need a long-term fine-tune (federated learning)
