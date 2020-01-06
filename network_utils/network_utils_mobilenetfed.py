@@ -279,8 +279,10 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
             Output:
                 `model`: fine-tuned model.
         '''
+        if not train_loader:
+            return model
         
-        _NUM_CLASSES = 10
+        _NUM_CLASSES = 62
         optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr, 
                                          momentum=self.momentum, weight_decay=self.weight_decay)
         model = model.cuda()
@@ -343,6 +345,10 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                     fns.update_progress(i, len(val_loader))
                     print(' ')
         print(' ')
+        #TODO(zhaoyx): fix bug
+        if num_samples < 1:
+            print('no data, accuracy set to -1')
+            return -1
         print('Test accuracy: {:4.2f}% '.format(float(acc/num_samples*100)))
         print('===================================================================')
         return acc/num_samples*100

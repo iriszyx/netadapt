@@ -70,39 +70,34 @@ def worker(args):
 
 
     devices = []
-    device_data_idxs = []
 
-    with open(os.path.join(args.master_folder, common.MASTER_GROUP_FILENAME_TEMPLATE),
-        'r') as file_id:
-        content = file_id.read()
-        content = content.split(';')
-        group_idxs = [list(map(int, i.split(','))) for i in content]
-        devices = group_idxs[args.block % len(group_idxs)]
+    save_path = os.path.join(args.master_folder, 
+                             common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
+
+    data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+    data_loader.load(save_path)
+
+    devices = data_loader.group_idxs[args.block % len(data_loader.group_idxs)]
 
     print("Device number: "+ str(len(devices)))
 
-    # Load data and load master file.
-    with open(os.path.join(args.master_folder, common.MASTER_DATASET_SPLIT_FILENAME_TEMPLATE),
-        'r') as file_id:
-        content = file_id.read()
-        content = content.split(';')
-        device_data_idxs = [list(map(int, i.split(','))) for i in content]
-
-    data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    data_loader.load(group_idxs, device_data_idxs)
 
     worker_begin = datetime.datetime.now()
     for i in range(len(devices)):
         print('Start device ', i)
         device_begin = datetime.datetime.now()
         device_model = copy.deepcopy(simplified_model)
+        #TODO(zhaoyx): modify the logic
         if args.arch == 'mobilenetfed':
             train_loader = data_loader.training_data_loader(devices[i])
             fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader)
+            val_loader = data_loader.validation_data_loader(devices[i])
+            fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model,val_loader)
+
         else:
             fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration)
-        val_loader = data_loader.validation_data_loader(devices[i])
-        fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
+            fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
+
         print('Accuracy after finetune:', fine_tuned_accuracy)
         # TODO(zhaoyx): measure/simulate latency for different devices.
         latency = abs(np.random.normal(1))

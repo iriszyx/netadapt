@@ -83,11 +83,46 @@ class DataLoaderAbstract(ABC):
         '''
         pass
 
+
     @abstractmethod
-    def load(self):
+    def dump(self):
         '''
-            Load data loader from array.
+            Dump data loader to file.
             
         '''
         pass
+
+
+    @abstractmethod
+    def load(self):
+        '''
+            Load data loader from file.
+            
+        '''
+        pass
+
+
+    @abstractmethod
+    def get_all_train_data_loader(self):
+
+        pass
+
+
+    @abstractmethod
+    def get_all_validation_data_loader(self):
+
+        pass
+        
+
+    @abstractmethod
+    def get_test_data_loader(self):
+
+        pass
+
+    @abstractmethod
+    def get_device_data_size(self):
+
+        pass
+
+
 

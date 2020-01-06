@@ -13,6 +13,7 @@ import torchvision.datasets as datasets
 import torch.utils.data.sampler as sampler
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
+import json
 
 sys.path.append(os.path.abspath('../'))
 
@@ -70,6 +71,13 @@ class dataLoader_cifar10(DataLoaderAbstract):
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         ]))
 
+        self.test_dataset = datasets.CIFAR10(root=dataset_path, train=False, download=True,
+            transform=transforms.Compose([
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            ]))
+
 
     def generate_device_data(self, device_number, is_iid):
 
@@ -86,8 +94,8 @@ class dataLoader_cifar10(DataLoaderAbstract):
             self.device_data_idxs, all_idxs = [None for i in range(device_number)], [i for i in range(len(self.train_dataset))]
 
             for i in range(self.device_number):
-                self.device_data_idxs[i] = set(np.random.choice(all_idxs, num_items, replace=False))
-                all_idxs = list(set(all_idxs) - self.device_data_idxs[i])
+                self.device_data_idxs[i] = list(np.random.choice(all_idxs, num_items, replace=False))
+                all_idxs = list(set(all_idxs) - set(self.device_data_idxs[i]))
         else:
             #TODO(zhaoyx): non-IID for cifar-10.
             raise ValueError("need be iid for cifar-10.")
@@ -157,18 +165,72 @@ class dataLoader_cifar10(DataLoaderAbstract):
 
         return val_loader
 
-
-    def load(self, group_idxs, device_data_idxs):
+    def dump(self, save_path):
         '''
             Generate validation data loader for specified device.
             Input:
                 `group_idxs`: (List)
                 `device_data_idxs`: (List)
         '''
-        self.group_idxs = group_idxs
-        self.device_data_idxs = device_data_idxs
-        self.device_number = len(device_data_idxs)
-        self.group_number = len(group_idxs)
+        for i in range(len(self.device_data_idxs)):
+            self.device_data_idxs[i] = [int(j) for j in self.device_data_idxs[i]]
+        save_dict = {'device_data_idxs' : self.device_data_idxs, 
+                     'group_idxs' : self.group_idxs}
+        
+        with open(save_path, 'w') as file_id:
+            json.dump(save_dict, file_id)
+
+
+    def load(self, save_path):
+        '''
+            Generate validation data loader for specified device.
+            Input:
+                `group_idxs`: (List)
+                `device_data_idxs`: (List)
+        '''
+        with open(save_path, 'r') as file_id:
+            read_dict = json.load(file_id)
+
+        self.group_idxs = read_dict['group_idxs']
+        self.device_data_idxs = read_dict['device_data_idxs']
+        self.device_number = len(self.device_data_idxs)
+        self.group_number = len(self.group_idxs)
+
+    def get_all_train_data_loader(self):
+
+        train_loader = torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.batch_size, 
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+
+        return train_loader
+
+    def get_all_validation_data_loader(self):
+        '''
+            Generate validation data loader for specified device.
+            Input:
+                `device_idx`: (int) index of the device
+
+            Output:
+                `validation_data_loader`: validation data loader for the device 
+        '''
+
+        val_loader = torch.utils.data.DataLoader(
+            self.val_dataset, batch_size=self.batch_size, 
+            num_workers=self.num_workers, pin_memory=True, shuffle=False)
+
+        return val_loader
+
+    def get_test_data_loader(self):
+
+
+        test_loader = torch.utils.data.DataLoader(
+            self.test_dataset, batch_size=self.batch_size, shuffle=False,
+            num_workers=self.num_workers, pin_memory=True)
+
+        return test_loader
+
+    def get_device_data_size(self,device_idx):
+        return len(self.device_data_idxs[device_idx])
 
 
 

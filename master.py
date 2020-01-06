@@ -220,6 +220,11 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
             with open(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx )), 'r') as file_id:
                 resource = float(file_id.readline())
+            #TODO(zhaoyx): fix bug
+            if accuracy < 0:
+                print('skip')
+                print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
+                continue
             # Metric fusion
             if resource < starting_resource:
                 vaild_device_num += 1
@@ -464,7 +469,10 @@ def master(args):
             network_utils.build_lookup_table(network_def, args.resource_type, args.lookup_table_path)
         current_resource = network_utils.compute_resource(network_def, args.resource_type, args.lookup_table_path)
 
-        current_accuracy = network_utils.evaluate(model)
+        # Dataset loading and partition.
+        data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+        val_loader = data_loader.get_all_validation_data_loader()
+        current_accuracy = network_utils.evaluate(model, val_loader)
         current_block = None
         
         if args.init_resource_reduction == None:
@@ -494,23 +502,19 @@ def master(args):
     
     # Dataset loading and partition.
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    device_data_idxs = data_loader.generate_device_data(args.device_number,True)
+    is_iid = True if args.dataset == 'cifar10' else False
+    device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
     group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
 
-    #print(device_data_idxs)
+    print(device_data_idxs)
+    print(group_idxs)
 
-    #print(group_idxs)
 
-    with open(os.path.join(master_folder,
-                               common.MASTER_DATASET_SPLIT_FILENAME_TEMPLATE),
-                  'w') as file_id:
-            file_id.write(str(";").join([",".join([str(j) for j in i]) for i in device_data_idxs]))
-
-    with open(os.path.join(master_folder,
-                               common.MASTER_GROUP_FILENAME_TEMPLATE),
-                  'w') as file_id:
-            file_id.write(str(";").join([",".join([str(j) for j in i]) for i in group_idxs]))                   
+    save_path = os.path.join(master_folder, 
+                             common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
+    data_loader.dump(save_path)    
+                
 
     current_iter += 1
 
@@ -568,19 +572,16 @@ def master(args):
         best_accuracy, best_resource, best_block = (
             _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
                                                   current_accuracy, current_resource, group_len))
-        
         # Model fusion, and generate best model at best model path
         group_id = best_block % len(group_len)
         device_num =  group_len[group_id]
-        group_data_num = [len(device_data_idxs[d]) for d in group_idxs[group_id]]
+        group_data_num = [data_loader.get_device_data_size(d) for d in group_idxs[group_id]]
         print ('Group: {}, group device data: {}'.format(group_id, group_data_num))
         best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num, group_data_num)
-
 
         # Check if we need a long-term fine-tune (federated learning)
         if need_fl_tune(current_iter, args.max_iters):
             best_model_path = run_fl(best_model_path, data_loader, network_utils)
-
 
         # Check whether the target_resource is achieved.
         if not best_model_path:
