@@ -377,9 +377,11 @@ def master(args):
 
     # Resume or do iteration 0.
     if args.resume:
+        old_args = copy.deepcopy(args)
         with open(history_pickle_file, 'rb') as file_id:
             history = pickle.load(file_id)
         args = history[_KEY_MASTER_ARGS]
+        args.max_iters = old_args.max_iters
 
         # Initialize variables.
         current_iter = len(history[_KEY_HISTORY]) - 1
@@ -479,7 +481,7 @@ def master(args):
     
     # Dataset loading and partition.
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    is_iid = True if args.dataset == 'cifar10' else False
+    is_iid = True if args.dataset == 'cifar10' else False #TODO: in a smarter way
     device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
     group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
