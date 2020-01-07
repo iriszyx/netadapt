@@ -10,12 +10,22 @@ import torch.backends.cudnn as cudnn
 
 import nets as models
 import functions as fns
+import data_loader as dataLoader
 
-_NUM_CLASSES = 10
+
+# For cifar-10
+#_NUM_CLASSES = 10
+# For feminst
+_NUM_CLASSES = 62
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(models.__dict__[name]))
+
+# Supported data_loaders
+data_loader_all = sorted(name for name in dataLoader.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(dataLoader.__dict__[name]))
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -174,6 +184,12 @@ if __name__ == '__main__':
                             help='path to save models (default: models/')
     arg_parser.add_argument('--no-cuda', action='store_true', default=False, dest='no_cuda',
                     help='disables training on GPU')
+    arg_parser.add_argument('-d', '--dataset',  default='cifar10', 
+                        choices=data_loader_all,
+                        help='dataset: ' +
+                        ' | '.join(data_loader_all) +
+                        ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
+    
     args = arg_parser.parse_args()
     print(args)
     
@@ -182,31 +198,46 @@ if __name__ == '__main__':
         os.makedirs(path)
         print('Create new directory `{}`'.format(path))        
 
-    # Data loader
-    train_dataset = datasets.CIFAR10(root=args.data, train=True, download=True,
-        transform=transforms.Compose([
-            transforms.RandomCrop(32, padding=4), 
-            transforms.Resize(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=True)
-    test_dataset = datasets.CIFAR10(root=args.data, train=False, download=True,
-        transform=transforms.Compose([
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
-    test_loader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+    # # Data loader
+    # train_dataset = datasets.CIFAR10(root=args.data, train=True, download=True,
+    #     transform=transforms.Compose([
+    #         transforms.RandomCrop(32, padding=4), 
+    #         transforms.Resize(224),
+    #         transforms.RandomHorizontalFlip(),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    #     ]))
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_dataset, batch_size=args.batch_size, shuffle=True,
+    #     num_workers=args.workers, pin_memory=True)
+    # test_dataset = datasets.CIFAR10(root=args.data, train=False, download=True,
+    #     transform=transforms.Compose([
+    #         transforms.Resize(224),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    #     ]))
+    # test_loader = torch.utils.data.DataLoader(
+    #     test_dataset, batch_size=args.batch_size, shuffle=False,
+    #     num_workers=args.workers, pin_memory=True)
+
+
+    
+    # Dataset loading and partition.
+    data_loader = dataLoader.__dict__[args.dataset](args.data)
+    train_loader = data_loader.get_all_train_data_loader()
+    test_loader = data_loader.get_all_validation_data_loader()
     
     # Network
     cudnn.benchmark = True
-    num_classes = _NUM_CLASSES
+    #num_classes = _NUM_CLASSES
+    if args.dataset == 'cifar10':
+        num_classes = 10
+    elif args.dataset == 'feminst':
+        num_classes = 62
+    else:
+        # other
+        num_classes = 10
+
     model_arch = args.arch
     model = models.__dict__[model_arch](num_classes=num_classes)
     criterion = nn.BCEWithLogitsLoss()
