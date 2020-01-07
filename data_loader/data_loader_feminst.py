@@ -21,7 +21,7 @@ sys.path.append(os.path.abspath('../'))
 
 from constants import *
 
-class DatasetUserSplit(Dataset):
+class TrainDatasetUserSplit(Dataset):
     def __init__(self, dataset, user):
         self.dataset = dataset[user]
 
@@ -45,6 +45,27 @@ class DatasetUserSplit(Dataset):
 
         return image, label
 
+class TestDatasetUserSplit(Dataset):
+    def __init__(self, dataset, user):
+        self.dataset = dataset[user]
+
+    def __len__(self):
+        return len(self.dataset['x'])
+
+    def __getitem__(self, index):
+        image, label = self.dataset['x'][index], self.dataset['y'][index]
+        image = np.resize(np.array(image),(28,28))
+        image = Image.fromarray(image)
+
+        transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        ])
+        image = transform(image)
+
+        return image, label
 
 
 class trainset(Dataset):
@@ -63,11 +84,40 @@ class trainset(Dataset):
         image = np.resize(np.array(image),(28,28))
         image = Image.fromarray(image)
         
-
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4), 
             transforms.Resize(224),
             transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        ])
+        image = transform(image)
+
+        return image, label
+
+    def __len__(self):
+        return len(self.dataset['x'])
+
+class testset(Dataset):
+    def __init__(self, train_data, users):
+        
+        self.dataset = {'x':[], 'y':[]}
+        
+        self.users = users
+        
+        for user in self.users:
+            self.dataset['x'].extend(train_data[user]['x'])
+            self.dataset['y'].extend(train_data[user]['y'])
+
+    def __getitem__(self, index):
+        image, label = self.dataset['x'][index], self.dataset['y'][index]
+        image = np.resize(np.array(image),(28,28))
+        image = Image.fromarray(image)
+        
+
+        transform = transforms.Compose([
+            transforms.Resize(224),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
@@ -191,7 +241,7 @@ class dataLoader_feminst(DataLoaderAbstract):
             return None
 
         train_loader = torch.utils.data.DataLoader(
-            DatasetUserSplit(self.train_dataset, user_name), batch_size=self.batch_size, 
+            TrainDatasetUserSplit(self.train_dataset, user_name), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return train_loader
@@ -210,7 +260,7 @@ class dataLoader_feminst(DataLoaderAbstract):
         user_name = self.dataset_users[self.device_data_idxs[device_idx]]
 
         val_loader = torch.utils.data.DataLoader(
-            DatasetUserSplit(self.val_dataset, user_name), batch_size=self.batch_size, 
+            TestDatasetUserSplit(self.val_dataset, user_name), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=False)
 
         return val_loader
@@ -260,7 +310,7 @@ class dataLoader_feminst(DataLoaderAbstract):
     def get_all_validation_data_loader(self):
 
         val_loader = torch.utils.data.DataLoader(
-            trainset(self.val_dataset, self.dataset_users), batch_size=self.batch_size, 
+            testset(self.val_dataset, self.dataset_users), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=False)
 
         return val_loader
@@ -268,7 +318,7 @@ class dataLoader_feminst(DataLoaderAbstract):
     def get_test_data_loader(self):
 
         val_loader = torch.utils.data.DataLoader(
-            trainset(self.val_dataset, self.dataset_users), batch_size=self.batch_size, 
+            testset(self.val_dataset, self.dataset_users), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=False)
 
         return val_loader
