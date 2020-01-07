@@ -1,0 +1,7 @@
+data/*
+log_*
+models/*
+.vscode/*
+*.tar
+*.gz
+nohup.out
