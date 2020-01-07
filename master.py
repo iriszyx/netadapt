@@ -484,8 +484,8 @@ def master(args):
     group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
 
-    print(device_data_idxs)
-    print(group_idxs)
+    # print(device_data_idxs)
+    # print(group_idxs)
 
 
     save_path = os.path.join(master_folder, 
