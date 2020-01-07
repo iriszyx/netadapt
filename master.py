@@ -266,45 +266,22 @@ def _fed_avg(w, data_num):
     w_avg = {k: functools.reduce(lambda x,y: x + y, w_avg[k]) / np.sum(data_num) for k in w_avg}
     return w_avg
 
-def need_fl_tune(iter_id, total_iter_num):
-    '''
-        Shall we run federated learning on the fused model (long-term fine-tune)?
-    '''
-    return iter_id == (total_iter_num - 1)
+# def need_fl_tune(iter_id, total_iter_num):
+#     '''
+#         Shall we run federated learning on the fused model (long-term fine-tune)?
+#     '''
+#     return iter_id == (total_iter_num - 1)
 
-def run_fl(model_path, data_loader, network_utils, skip_ratio=0.0):
-    '''
-        Run federated learning
-        Input:
-            'model_path': fused model's path, waiting to be fl-ed
-            'data_loader': data loader for devices
-        Output:
-            'fl_model_path': a new model path where fl-ed model is stored
-    '''
-    # print ('Run federated learning')
-    # state_sum = {}
-    # train_data_num = 0
-    # device_data_idxs = data_loader.device_data_idxs
-    # new_model_path = model_path + '_fl'
-    # model = torch.load(model_path)
-    # for device_id in range(len(device_data_idxs)):
-    #     if random.random() < skip_ratio: # skip this device
-    #         continue
-    #     train_loader = data_loader.training_data_loader(device_id)
-    #     device_model = copy.deepcopy(model)
-    #     fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader)
-    #     device_state = fine_tuned_model.state_dict()
-    #     for k in device_state:
-    #         if k not in state_sum:
-    #             state_sum[k] = torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
-    #         else:
-    #             state_sum[k] += torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
-    #     train_data_num += len(device_data_idxs[device_id])
-    #     del fine_tuned_model
-    # new_state = torch.div(state_sum, train_data_num)
-    # model.load_state_dict(new_state)
-    # torch.save(model, new_model_path)
-    return model_path
+# def run_fl(model_path, data_loader, network_utils, skip_ratio=0.0):
+#     '''
+#         Run federated learning
+#         Input:
+#             'model_path': fused model's path, waiting to be fl-ed
+#             'data_loader': data loader for devices
+#         Output:
+#             'fl_model_path': a new model path where fl-ed model is stored
+#     '''
+#     return model_path
 
 def _model_fusion(worker_folder, iteration, block_idx, device_num, data_num):
     '''
@@ -580,8 +557,8 @@ def master(args):
         best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num, group_data_num)
 
         # Check if we need a long-term fine-tune (federated learning)
-        if need_fl_tune(current_iter, args.max_iters):
-            best_model_path = run_fl(best_model_path, data_loader, network_utils)
+        # if need_fl_tune(current_iter, args.max_iters):
+        #     best_model_path = run_fl(best_model_path, data_loader, network_utils)
 
         # Check whether the target_resource is achieved.
         if not best_model_path:
