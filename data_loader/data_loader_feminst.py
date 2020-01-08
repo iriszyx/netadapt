@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import json
 from PIL import Image
+import heapq
 
 sys.path.append(os.path.abspath('../'))
 
@@ -150,7 +151,7 @@ class dataLoader_feminst(DataLoaderAbstract):
 
         # Data loaders.
         self.batch_size = 128
-        self.num_workers = 4
+        self.num_workers = 8
 
         train_data_dir = os.path.join(dataset_path, 'feminst','train')
         test_data_dir = os.path.join(dataset_path,'feminst','test')
@@ -216,13 +217,25 @@ class dataLoader_feminst(DataLoaderAbstract):
 
     def generate_group_based_on_device_data_size(self, group_number):        
         '''
-           For 
+           Generate group of devices with approximate total device data size.
         '''
         #TODO(zhaoyx): sort and greedy
         self.group_number = group_number
         self.group_idxs = [[] for i in range(self.group_number)]
 
-        self.device_data_size = [len(self.train_dataset[i]['x']) for i in self.device_data_idxs]
+        self.device_data_size = [[len(self.train_dataset[self.dataset_users[self.device_data_idxs[i]]]['x']), i] 
+                                    for i in range(len(self.device_data_idxs))]
+        self.device_data_size = sorted(self.device_data_size, key=lambda x: x[0], reverse = True)
+        self.heap = [[0,i] for i in range(group_number)]
+
+        for i in self.device_data_size:
+            now_data_size = i[0]
+            now_data_index = i[1]
+
+            group_data_size, group_idx = heapq.heappop(self.heap)
+            group_data_size = group_data_size + now_data_size
+            self.group_idxs[group_idx].append(now_data_index)
+            heapq.heappush(self.heap, [group_data_size, group_idx])
 
         return self.group_idxs
 

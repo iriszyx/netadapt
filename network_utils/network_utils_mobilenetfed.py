@@ -18,6 +18,7 @@ sys.path.append(os.path.abspath('../'))
 
 from constants import *
 import functions as fns
+import datetime
 
 '''
     This is an example of NetAdapt applied to MobileNet.
@@ -281,6 +282,8 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         '''
         if not train_loader:
             return model
+
+        fine_tune_begin = datetime.datetime.now()
         
         _NUM_CLASSES = 62
         optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr, 
@@ -313,6 +316,10 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
             optimizer.zero_grad()
             loss.backward()  # compute gradient and do SGD step
             optimizer.step()
+
+        fine_tune_end = datetime.datetime.now()
+        print ('Fine tune time: {} seconds'.format((fine_tune_end - fine_tune_begin).seconds))
+
         return model
     
 

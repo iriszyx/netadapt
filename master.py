@@ -217,9 +217,15 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
             with open(os.path.join(worker_folder, common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx)), 'r') as file_id:
                 accuracy = float(file_id.read())
+            os.remove(os.path.join(worker_folder, common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(iteration, block_idx,
+                      worker_idx)))
             with open(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx )), 'r') as file_id:
                 resource = float(file_id.readline())
+            os.remove(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
+                      worker_idx)))
+            os.remove(os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(iteration, block_idx)))
+
             #TODO(zhaoyx): fix bug
             if accuracy < 0:
                 print('skip')
@@ -483,7 +489,7 @@ def master(args):
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
     is_iid = True if args.dataset == 'cifar10' else False #TODO: in a smarter way
     device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
-    group_idxs = data_loader.generate_group_based_on_device_number(args.group_number)
+    group_idxs = data_loader.generate_group_based_on_device_data_size(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
 
     # print(device_data_idxs)
