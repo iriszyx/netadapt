@@ -282,9 +282,9 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         if not train_loader:
             return model
         
-        _NUM_CLASSES = 62
-        optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr, 
-                                         momentum=self.momentum, weight_decay=self.weight_decay)
+        _NUM_CLASSES = 10
+        optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr,
+                    momentum=self.momentum, weight_decay=self.weight_decay)
         model = model.cuda()
         model.train()
 
