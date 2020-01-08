@@ -864,3 +864,35 @@ def simplify_model_based_on_network_def(simplified_network_def, model):
                               len(kept_filter_idx)))
 
         return simplified_model
+
+
+def get_device_train_time(model_arch='mobilenet', device_model='Pixel', batch_size=128):
+    '''
+    Input:
+        "model_arch": network architecture
+        "device_mode": on which device we train
+        "batch_size": batch size
+    Output:
+        training time (in seconds) for each data item (not batch!)
+    '''
+    if device_model == 'Pixel':
+        if model_arch.startswith('mobilenet'):
+            return 0.1
+
+def get_fl_st_iter_time(model_arch, model_size, blk_num, gp_num, iter_data_num, compress_ratio,
+                        net_bw=2, device_model='Pixel', batch_size=128):
+    '''
+    Calculate running time for one FL iteration (by simulation)
+    T_local_train = max(1, block_num / group_num) * iter_data_num * train_time
+    T_upload = max(1, block_num / group_num) * model_size / net_bw
+    Input:
+        "net_bw": network bandwidth (Mbps)
+        "device_data_num": [[d1,d2...], [d1,d2...], ...]
+    '''
+    para_level = max(1, blk_num / gp_num)
+    train_time = get_device_train_time(model_arch=model_arch, device_model=device_model, batch_size=batch_size)
+    train_time *= compress_ratio
+    T_local_train = para_level * iter_data_num * train_time
+    T_upload = para_level * model_size / net_bw / (2**20)
+    # print ('{}, {}, {}, {}'.format(T_local_train, train_time, T_upload, compress_ratio))
+    return T_local_train + T_upload

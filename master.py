@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import os
 import pickle
-import time
 import torch
 from shutil import copyfile
 import subprocess
@@ -14,6 +13,9 @@ import copy
 import numpy as np
 import functools
 import random
+import functions as fns
+import datetime
+import time
 
 
 '''
@@ -35,6 +37,8 @@ _KEY_MASTER_ARGS = 'master_args'
 _KEY_HISTORY = 'history'
 _KEY_RESOURCE = 'resource'
 _KEY_ACCURACY = 'accuracy'
+_KEY_TIME_PHY = 'time_phy'
+_KEY_TIME_SIM = 'time_sim'
 _KEY_SOURCE_MODEL_PATH = 'source_model_path'
 _KEY_BLOCK = 'block'
 _KEY_ITERATION = 'iteration'
@@ -224,7 +228,7 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
                 resource = float(file_id.readline())
             os.remove(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx)))
-            os.remove(os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(iteration, block_idx)))
+            # os.remove(os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(iteration, block_idx)))
 
             #TODO(zhaoyx): fix bug
             if accuracy < 0:
@@ -341,12 +345,14 @@ def _save_and_print_history(network_utils, history, pickle_file_path, text_file_
     with open(pickle_file_path, 'wb') as file_id:
         pickle.dump(history, file_id)
     with open(text_file_path, 'w') as file_id:
-        file_id.write('Iteration,Accuracy,Resource,Block,Source Model\n')
+        file_id.write('Iteration,Accuracy,PhyTime,SimTime,Resource,Block,Source Model\n')
         for iter in range(len(history[_KEY_HISTORY])):
             
             # assume the extra hisotry info is the # of output channels per layer
             num_filters_str = network_utils.extra_history_info(history[_KEY_HISTORY][iter][_KEY_NETWORK_DEF])
-            file_id.write('{},{},{},{},{},{}\n'.format(iter, history[_KEY_HISTORY][iter][_KEY_ACCURACY],
+            file_id.write('{},{},{},{},{},{},{},{}\n'.format(iter, history[_KEY_HISTORY][iter][_KEY_ACCURACY],
+                                                       history[_KEY_HISTORY][iter][_KEY_TIME_PHY],
+                                                       history[_KEY_HISTORY][iter][_KEY_TIME_SIM],
                                                        history[_KEY_HISTORY][iter][_KEY_RESOURCE],
                                                        history[_KEY_HISTORY][iter][_KEY_BLOCK],
                                                        history[_KEY_HISTORY][iter][_KEY_SOURCE_MODEL_PATH],
@@ -375,6 +381,7 @@ def master(args):
     worker_folder = os.path.join(args.working_folder, _WORKER_FOLDER_FILENAME)
     history_pickle_file = os.path.join(master_folder, _HISTORY_PICKLE_FILENAME)
     history_text_file = os.path.join(master_folder, _HISTORY_TEXT_FILENAME)
+
 
     # Get available GPUs.
     available_gpus = args.gpus
@@ -476,6 +483,8 @@ def master(args):
         history[_KEY_HISTORY].append({_KEY_RESOURCE: current_resource,
                                       _KEY_SOURCE_MODEL_PATH: args.init_model_path,
                                       _KEY_ACCURACY: current_accuracy,
+                                      _KEY_TIME_PHY: -1,
+                                      _KEY_TIME_SIM: -1,
                                       _KEY_BLOCK: current_block,
                                       _KEY_NETWORK_DEF: network_def})
         _save_and_print_history(network_utils, history, history_pickle_file, history_text_file)
@@ -500,14 +509,15 @@ def master(args):
                              common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
     data_loader.dump(save_path)    
                 
+    init_resource = current_resource
 
     current_iter += 1
-    
+
 
     # Start adaptation.
     while current_iter <= args.max_iters and current_resource > args.budget:
-        
-        start_time = time.time()
+        print ('Iter: {}, Resource: {}, Resource_budget: {}'.format(current_iter, current_resource, args.budget))
+        iter_start_time = datetime.datetime.now()
         
         # Set the target resource.
         target_resource = current_resource - args.init_resource_reduction * (
@@ -593,6 +603,17 @@ def master(args):
                     print('Remove', temp_model_path)
                 print(' ')
 
+        # the running time for this iteration (simulation)
+        model_size = os.path.getsize(current_model_path)
+        sim_iter_time = fns.get_fl_st_iter_time(
+            args.arch, model_size, network_utils.get_num_simplifiable_blocks(),
+            args.group_number, network_utils.batch_size * args.short_term_fine_tune_iteration,
+            current_resource / init_resource)
+        print ('Running time for one iteration: ' + str(sim_iter_time) + ' seconds')
+
+        # the actual running time (physical)
+        phy_iter_time = (datetime.datetime.now() - iter_start_time).seconds
+
         # Save and print the history.
         model = torch.load(current_model_path)
         if type(model) is dict:
@@ -600,6 +621,8 @@ def master(args):
         network_def = network_utils.get_network_def_from_model(model)
         history[_KEY_HISTORY].append({_KEY_RESOURCE: current_resource,
                                       _KEY_SOURCE_MODEL_PATH: best_model_path,
+                                      _KEY_TIME_PHY: phy_iter_time,
+                                      _KEY_TIME_SIM: sim_iter_time,
                                       _KEY_ACCURACY: current_accuracy,
                                       _KEY_BLOCK: current_block,
                                       _KEY_NETWORK_DEF: network_def})
@@ -608,7 +631,7 @@ def master(args):
 
         current_iter += 1
         
-        print('Finish iteration {}: time {}'.format(current_iter-1, time.time()-start_time))
+        print('Finish iteration {}: time {}'.format(current_iter-1, phy_iter_time))
 
 
 if __name__ == '__main__':
