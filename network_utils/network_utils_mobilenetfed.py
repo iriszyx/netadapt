@@ -267,7 +267,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         return self.num_simplifiable_blocks
     
 
-    def fine_tune(self, model, iterations, train_loader, print_frequency=100):
+    def fine_tune(self, model, iterations, train_loader, num_classes, print_frequency=100):
         '''
             short-term fine-tune a simplified model
             
@@ -285,9 +285,9 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
 
         fine_tune_begin = datetime.datetime.now()
         
-        _NUM_CLASSES = 10
-        optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr,
-                    momentum=self.momentum, weight_decay=self.weight_decay)
+        #_NUM_CLASSES = 62
+        optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr, 
+                                         momentum=self.momentum, weight_decay=self.weight_decay)
         model = model.cuda()
         model.train()
 
@@ -304,7 +304,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                 sys.stdout.flush()
             
             target.unsqueeze_(1)
-            target_onehot = torch.FloatTensor(target.shape[0], _NUM_CLASSES)
+            target_onehot = torch.FloatTensor(target.shape[0], num_classes)
             target_onehot.zero_()
             target_onehot.scatter_(1, target, 1)
             target.squeeze_(1)

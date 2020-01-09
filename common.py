@@ -17,3 +17,9 @@ WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE = 'iter_{}_block_{}_device_{}_accuracy.
 WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE = 'iter_{}_block_{}_device_{}_resource.txt'
 WORKER_DEVICE_LOG_FILENAME_TEMPLATE = 'iter_{}_block_{}_device_{}_log.txt'
 WORKER_DEVICE_FINISH_FILENAME_TEMPLATE = 'iter_{}_block_{}_device_{}_finish.signal'
+
+#dict
+DATASET_CLASSES_PARAMS = {
+    'cifar10': 10,
+    'feminst': 62,
+}
