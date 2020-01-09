@@ -228,8 +228,8 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
                 resource = float(file_id.readline())
             os.remove(os.path.join(worker_folder, common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(iteration, block_idx,
                       worker_idx)))
-            # os.remove(os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(iteration, block_idx)))
-
+            os.remove(os.path.join(worker_folder, common.WORKER_DEVICE_FINISH_FILENAME_TEMPLATE.format(iteration, block_idx,
+                      worker_idx)))
             #TODO(zhaoyx): fix bug
             if accuracy < 0:
                 print('skip')
