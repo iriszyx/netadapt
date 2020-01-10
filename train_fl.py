@@ -16,6 +16,7 @@ import functools
 import random
 import functions as fns
 import datetime
+import common
 
 # Supported data_loaders
 data_loader_all = sorted(name for name in dataLoader.__dict__
@@ -29,8 +30,9 @@ def adjust_learning_rate(optimizer, epoch, args):
         param_group['lr'] = lr
 
 def get_cls_num(dataset):
-    if dataset == 'cifar10': return 10
-    else: 'No idea how many classes!'
+    # if dataset == 'cifar10': return 10
+    # else: 'No idea how many classes!'
+    return int(ommon.DATASET_CLASSES_PARAMS[dataset])
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -111,18 +113,22 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
         state_sum = {}
         train_data_num = 0        
         for device_id in range(len(device_data_idxs)):
+            if device_id % 100 == 0:
+                print('Start Device {}'.format(device_id))
             if random.random() < skip_ratio: # skip this device
                 continue
             train_loader = data_loader.training_data_loader(device_id)
             device_model = copy.deepcopy(model)
             fine_tuned_model = device_train(train_loader, device_model, args)
             device_state = fine_tuned_model.state_dict()
+            device_data_size = data_loader.get_device_data_size(device_id)
             for k in device_state:
                 if k not in state_sum:
-                    state_sum[k] = torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
+                    # state_sum[k] = torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
+                    state_sum[k] = torch.mul(copy.deepcopy(device_state[k]), device_data_size)
                 else:
-                    state_sum[k] += torch.mul(copy.deepcopy(device_state[k]), len(device_data_idxs[device_id]))
-            train_data_num += len(device_data_idxs[device_id])
+                    state_sum[k] += torch.mul(copy.deepcopy(device_state[k]), device_data_size)
+            train_data_num += device_data_size
             del fine_tuned_model
         new_state = {k: torch.div(state_sum[k], train_data_num) for k in state_sum}
         model.load_state_dict(new_state)
@@ -140,12 +146,12 @@ def main(args):
     data_loader.load(save_path)
 
     if args.model_name == 'ALL':
-        all_models = [m for m in os.listdir(worker_path) if m.endswith('.pth.tar')]
+        all_models = [m for m in os.listdir(master_path) if m.endswith('.pth.tar')]
     else:
         all_models = [args.model_name]
     for model in all_models:
         print ('Federated learning on model ' + model)
-        model_path = os.path.join(worker_path, model)
+        model_path = os.path.join(master_path, model)
         run_fl(model_path, data_loader, args)
 
 

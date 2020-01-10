@@ -20,8 +20,9 @@ data_loader_all = sorted(name for name in dataLoader.__dict__
     and callable(dataLoader.__dict__[name]))
 
 def get_cls_num(dataset):
-    if dataset == 'cifar10': return 10
-    else: 'No idea how many classes!'
+    # if dataset == 'cifar10': return 10
+    # else: 'No idea how many classes!'
+    return int(common.DATASET_CLASSES_PARAMS[dataset])
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
