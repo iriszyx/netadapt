@@ -124,5 +124,10 @@ class DataLoaderAbstract(ABC):
 
         pass
 
+    @abstractmethod
+    def get_device_val_data_size(self):
+
+        pass
+
 
 

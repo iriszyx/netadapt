@@ -35,12 +35,11 @@ class TrainDatasetUserSplit(Dataset):
         image = Image.fromarray(image)
 
         transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4), 
             transforms.Resize(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         image = transform(image)
 
@@ -62,7 +61,7 @@ class TestDatasetUserSplit(Dataset):
             transforms.Resize(224),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         image = transform(image)
 
@@ -86,12 +85,11 @@ class trainset(Dataset):
         image = Image.fromarray(image)
         
         transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4), 
             transforms.Resize(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         image = transform(image)
 
@@ -121,7 +119,7 @@ class testset(Dataset):
             transforms.Resize(224),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         image = transform(image)
 
@@ -340,6 +338,12 @@ class dataLoader_feminst(DataLoaderAbstract):
         user_name = self.dataset_users[self.device_data_idxs[device_idx]]
 
         return len(self.train_dataset[user_name]['x'])
+
+    def get_device_val_data_size(self, device_idx):
+
+        user_name = self.dataset_users[self.device_data_idxs[device_idx]]
+
+        return len(self.val_dataset[user_name]['x'])
 
 
 

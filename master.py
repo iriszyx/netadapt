@@ -188,7 +188,7 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
 
 
 def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, starting_accuracy, starting_resource,
-                                            group_len):
+                                            group_len, group_val_data_num):
     '''
         After all workers finish jobs, select the network with best accuracy-to-resource ratio after metric fusion.
         
@@ -214,6 +214,7 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
     best_block = None
     for block_idx in range(num_blocks):
         vaild_device_num = 0.0
+        vaild_device_size = 0.0
         accuracy_sum = 0.0
         resource_sum = 0.0
         worker_num = group_len[block_idx%len(group_len)]
@@ -235,16 +236,17 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
                 print('skip')
                 print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
                 continue
-            # Metric fusion
+            # Metric fusion group_val_data_num[block_idx % len(group_len)][worker_idx]
             if resource < starting_resource:
                 vaild_device_num += 1
-                accuracy_sum += accuracy
+                vaild_device_size += group_val_data_num[block_idx % len(group_len)][worker_idx]
+                accuracy_sum += accuracy * group_val_data_num[block_idx % len(group_len)][worker_idx]
                 resource_sum += resource
         
         if vaild_device_num < 1:
             continue
         
-        accuracy = accuracy_sum / vaild_device_num
+        accuracy = accuracy_sum / vaild_device_size
         resource = resource_sum / vaild_device_num
 
         #ratio_resource_accuracy = (starting_accuracy - accuracy) / (starting_resource - resource + 1e-5)
@@ -318,6 +320,7 @@ def _model_fusion(worker_folder, iteration, block_idx, device_num, data_num):
         s1 = model.state_dict()
         w_array.append(copy.deepcopy(s1))
         del model
+        del s1
 
     w_glob = _fed_avg(w_array, data_num)
 
@@ -564,9 +567,10 @@ def master(args):
         #                      current_resource))
 
         # Find best model by metric fusion
+        group_val_data_num = [[data_loader.get_device_val_data_size(d) for d in group_idxs[group_id]] for group_id in range(args.group_number)]
         best_accuracy, best_resource, best_block = (
             _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
-                                                  current_accuracy, current_resource, group_len))
+                                                  current_accuracy, current_resource, group_len, group_val_data_num))
         # Model fusion, and generate best model at best model path
         group_id = best_block % len(group_len)
         device_num =  group_len[group_id]
@@ -686,8 +690,6 @@ if __name__ == '__main__':
                             help='Interval of iterations that all pruned models at the same iteration will be saved. Use `-1` to save only the best model at each iteration. Use `1` to save all models at each iteration. (default: -1).')
     
     # Added parameters.
-    # arg_parser.add_argument('-dw', '--device_number_per_worker', type=int, default=3, 
-    #                         help='Device number per worker.')
     arg_parser.add_argument('-dn', '--device_number', type=int, default=3, 
                             help='Total device number.')
     arg_parser.add_argument('-d', '--dataset',  default='cifar10', 

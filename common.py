@@ -22,4 +22,6 @@ WORKER_DEVICE_FINISH_FILENAME_TEMPLATE = 'iter_{}_block_{}_device_{}_finish.sign
 DATASET_CLASSES_PARAMS = {
     'cifar10': 10,
     'feminst': 62,
+    'celeba' : 2,
+    'imagenet' : 1000,
 }

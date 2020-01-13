@@ -32,7 +32,7 @@ class DatasetSplit(Dataset):
         return image, label
 
 
-class dataLoader_cifar10(DataLoaderAbstract):
+class dataLoader_imagenet(DataLoaderAbstract):
 
     batch_size = None
     num_workers = None
@@ -53,30 +53,25 @@ class dataLoader_cifar10(DataLoaderAbstract):
 
         # Data loaders.
         self.batch_size = 128
-        self.num_workers = 4
-        
-        self.train_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
-        transform=transforms.Compose([
-            transforms.RandomCrop(32, padding=4), 
-            transforms.Resize(224),
+        self.num_workers = 8
+
+        # Data loading code
+        transform = transforms.Compose([
+            transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
-        
-        self.val_dataset = datasets.CIFAR10(root=dataset_path, train=False, download=True,
-        transform=transforms.Compose([
-            transforms.Resize(224), 
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        ]))
+            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+                                 std = [ 0.229, 0.224, 0.225 ]),
+        ])      
 
-        self.test_dataset = datasets.CIFAR10(root=dataset_path, train=False, download=True,
-            transform=transforms.Compose([
-                transforms.Resize(224),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-            ]))
+        traindir = os.path.join(dataset_path, 'train')
+        valdir = os.path.join(dataset_path, 'val')
+        self.train_dataset = datasets.ImageFolder(traindir, transform)
+        self.val_dataset = datasets.ImageFolder(valdir, transform)
+        self.test_dataset = datasets.ImageFolder(valdir, transform)
+
+        # train_loader = torch.utils.data.DataLoader(
+        #     train, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)        
 
 
     def generate_device_data(self, device_number, is_iid):
@@ -97,8 +92,8 @@ class dataLoader_cifar10(DataLoaderAbstract):
                 self.device_data_idxs[i] = list(np.random.choice(all_idxs, num_items, replace=False))
                 all_idxs = list(set(all_idxs) - set(self.device_data_idxs[i]))
         else:
-            #TODO(zhaoyx): non-IID for cifar-10.
-            raise ValueError("need be iid for cifar-10.")
+            #TODO(zhaoyx): non-IID for imagenet.
+            raise ValueError("need be iid for imagenet.")
 
         return self.device_data_idxs
 
@@ -142,9 +137,10 @@ class dataLoader_cifar10(DataLoaderAbstract):
             Output:
                 `training_data_loader`: training data loader for the device 
         '''
+
         train_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.train_dataset, self.device_data_idxs[device_idx]), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+            shuffle=True, num_workers=self.num_workers, pin_memory=True)  
 
         return train_loader
 
@@ -232,12 +228,12 @@ class dataLoader_cifar10(DataLoaderAbstract):
     def get_device_data_size(self,device_idx):
         return len(self.device_data_idxs[device_idx])
 
-    def get_device_val_data_size(self,device_idx):
+    def get_device_val_data_size(self, device_idx):
 
         return int(len(self.val_dataset)/(self.device_number))
 
 
 
-def cifar10(dataset_path):
-    return dataLoader_cifar10(dataset_path)
+def imagenet(dataset_path):
+    return dataLoader_imagenet(dataset_path)
 

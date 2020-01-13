@@ -12,6 +12,7 @@ import pickle
 import nets as models
 import functions as fns
 import data_loader as dataLoader
+import common
 
 # For cifar-10
 #_NUM_CLASSES = 10
@@ -151,14 +152,9 @@ if __name__ == '__main__':
     # Network
     model_arch = args.arch
     cudnn.benchmark = True
-    #num_classes = _NUM_CLASSES
-    if args.dataset == 'cifar10':
-        num_classes = 10
-    elif args.dataset == 'feminst':
-        num_classes = 62
-    else:
-        # other
-        num_classes = 10
+
+    num_classes = common.DATASET_CLASSES_PARAMS[args.dataset]
+
     model = models.__dict__[model_arch](num_classes=num_classes)
 
     if not args.no_cuda:
@@ -168,6 +164,7 @@ if __name__ == '__main__':
     filename = os.path.join(args.save_dir)
 
     model = torch.load(filename) 
+    model = model.cuda()  
     print(model)
         
     best_acc = eval(test_loader, model, args)

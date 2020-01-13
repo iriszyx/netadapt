@@ -11,12 +11,13 @@ import torch.backends.cudnn as cudnn
 import nets as models
 import functions as fns
 import data_loader as dataLoader
+import common
 
 
 # For cifar-10
 #_NUM_CLASSES = 10
 # For feminst
-_NUM_CLASSES = 62
+# _NUM_CLASSES = 62
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -64,7 +65,7 @@ def compute_accuracy(output, target):
     return acc
     
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, num_classes, args):
     batch_time = AverageMeter()
     losses = AverageMeter()
     acc = AverageMeter()
@@ -77,7 +78,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     
     for i, (images, target) in enumerate(train_loader):
         target.unsqueeze_(1)
-        target_onehot = torch.FloatTensor(target.shape[0], _NUM_CLASSES)
+        target_onehot = torch.FloatTensor(target.shape[0], num_classes)
         target_onehot.zero_()
         target_onehot.scatter_(1, target, 1)
         target.squeeze_(1)
@@ -230,13 +231,14 @@ if __name__ == '__main__':
     # Network
     cudnn.benchmark = True
     #num_classes = _NUM_CLASSES
-    if args.dataset == 'cifar10':
-        num_classes = 10
-    elif args.dataset == 'feminst':
-        num_classes = 62
-    else:
-        # other
-        num_classes = 10
+    # if args.dataset == 'cifar10':
+    #     num_classes = 10
+    # elif args.dataset == 'feminst':
+    #     num_classes = 62
+    # else:
+    #     # other
+    #     num_classes = 10
+    num_classes = common.DATASET_CLASSES_PARAMS[args.dataset]
 
     model_arch = args.arch
     model = models.__dict__[model_arch](num_classes=num_classes)
@@ -266,7 +268,7 @@ if __name__ == '__main__':
         print('Epoch [{}/{}]'.format(epoch+1, args.epochs - args.start_epoch))
         adjust_learning_rate(optimizer, epoch, args)
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model, criterion, optimizer, epoch, num_classes, args)
         acc = eval(test_loader, model, args)
         
         if acc > best_acc:

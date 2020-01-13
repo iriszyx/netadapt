@@ -19,6 +19,7 @@ sys.path.append(os.path.abspath('../'))
 from constants import *
 import functions as fns
 import datetime
+import math
 
 '''
     This is an example of NetAdapt applied to MobileNet.
@@ -108,7 +109,7 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         '''
         # Data loaders for fine tuning and evaluation.
         self.batch_size = 128
-        self.num_workers = 4
+        self.num_workers = 8
         self.momentum = 0.9
         self.weight_decay = 1e-4
         self.finetune_lr = finetune_lr
@@ -285,13 +286,15 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
 
         fine_tune_begin = datetime.datetime.now()
         
-        #_NUM_CLASSES = 62
         optimizer = torch.optim.SGD(model.parameters(), self.finetune_lr, 
                                          momentum=self.momentum, weight_decay=self.weight_decay)
         model = model.cuda()
         model.train()
 
         dataloader_iter = iter(train_loader)
+        total_data_size = len(train_loader.dataset)
+        iterations = math.ceil(iterations * total_data_size / self.batch_size)
+        print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
         for i in range(iterations):
             try:
                 (input, target) = next(dataloader_iter)
@@ -334,11 +337,12 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
             Output:
                 accuracy: (float) (0~100)
         '''
-        
+        evaluate_begin = datetime.datetime.now()
         model = model.cuda()
         model.eval()
         acc = .0
         num_samples = .0
+        iterations = 0
         with torch.no_grad():
             for i, (input, target) in enumerate(val_loader):
                 input, target = input.cuda(), target.cuda()
@@ -351,11 +355,15 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                 if i % print_frequency == 0:
                     fns.update_progress(i, len(val_loader))
                     print(' ')
+
+                iterations += 1
         print(' ')
         #TODO(zhaoyx): fix bug
         if num_samples < 1:
             print('no data, accuracy set to -1')
             return -1
+        evaluate_end = datetime.datetime.now()
+        print ('Evaluate time: {} seconds, {} interations'.format((evaluate_end - evaluate_begin).seconds, iterations))
         print('Test accuracy: {:4.2f}% '.format(float(acc/num_samples*100)))
         print('===================================================================')
         return acc/num_samples*100
