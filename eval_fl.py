@@ -113,13 +113,13 @@ def main(args):
     data_loader.load(save_path)
 
     if args.model_name == 'ALL':
-        all_models = [m for m in os.listdir(worker_path) if '.pth.tar' in m]
+        all_models = [m for m in os.listdir(master_path) if '.pth.tar' in m]
     else:
         all_models = [args.model_name]
     for model in all_models:
         print('===================================================================')
         print ('Testing model ' + model)
-        model = torch.load(os.path.join(worker_path, model))
+        model = torch.load(os.path.join(master_path, model))
         best_acc = eval(data_loader.get_test_data_loader(), model, args)
         print('Testing accuracy:', best_acc)
 

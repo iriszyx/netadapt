@@ -151,7 +151,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('resource_type', type=str, help='FLOPS/WEIGHTS/LATENCY')
     arg_parser.add_argument('constraint', type=float, help='floating value specifying resource constraint')
     arg_parser.add_argument('netadapt_iteration', type=int, help='netadapt iteration')
-    arg_parser.add_argument('short_term_fine_tune_iteration', type=int, help='number of iterations of fine-tuning after simplification')
+    arg_parser.add_argument('short_term_fine_tune_iteration', type=float, help='number of iterations of fine-tuning after simplification')
     arg_parser.add_argument('gpu', type=str, help='index of gpu to run short-term fine-tuning')
     arg_parser.add_argument('lookup_table_path', type=str, default='', help='path to lookup table')
     arg_parser.add_argument('dataset_path', type=str, default='', help='path to dataset')

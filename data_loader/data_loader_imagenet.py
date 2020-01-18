@@ -41,6 +41,7 @@ class dataLoader_imagenet(DataLoaderAbstract):
     val_dataset = None
     device_number = None
     device_data_idxs = None
+    device_val_data_idxs = None
     device_belong_to_group = None
 
     group_number = None
@@ -62,13 +63,20 @@ class dataLoader_imagenet(DataLoaderAbstract):
             transforms.ToTensor(),
             transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
                                  std = [ 0.229, 0.224, 0.225 ]),
-        ])      
+        ])    
+        val_transform = transforms.Compose([
+            transforms.Scale(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+                                 std = [ 0.229, 0.224, 0.225 ]),
+        ])
 
         traindir = os.path.join(dataset_path, 'train')
         valdir = os.path.join(dataset_path, 'val')
         self.train_dataset = datasets.ImageFolder(traindir, transform)
-        self.val_dataset = datasets.ImageFolder(valdir, transform)
-        self.test_dataset = datasets.ImageFolder(valdir, transform)
+        self.val_dataset = datasets.ImageFolder(traindir, val_transform)
+        self.test_dataset = datasets.ImageFolder(valdir, val_transform)
 
         # train_loader = torch.utils.data.DataLoader(
         #     train, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)        
@@ -85,12 +93,16 @@ class dataLoader_imagenet(DataLoaderAbstract):
         self.device_number = device_number
         if is_iid:
             num_items = int(len(self.train_dataset)/(self.device_number))
+            num_val_items = int(len(self.val_dataset)/(self.device_number))
 
             self.device_data_idxs, all_idxs = [None for i in range(device_number)], [i for i in range(len(self.train_dataset))]
+            self.device_val_data_idxs, all_val_idxs = [None for i in range(device_number)], [i for i in range(len(self.val_dataset))]
 
             for i in range(self.device_number):
                 self.device_data_idxs[i] = list(np.random.choice(all_idxs, num_items, replace=False))
                 all_idxs = list(set(all_idxs) - set(self.device_data_idxs[i]))
+                self.device_val_data_idxs[i] = list(np.random.choice(all_val_idxs, num_val_items, replace=False))
+                all_val_idxs = list(set(all_val_idxs) - set(self.device_val_data_idxs[i]))
         else:
             #TODO(zhaoyx): non-IID for imagenet.
             raise ValueError("need be iid for imagenet.")
@@ -156,8 +168,8 @@ class dataLoader_imagenet(DataLoaderAbstract):
         '''
 
         val_loader = torch.utils.data.DataLoader(
-            DatasetSplit(self.val_dataset, self.device_data_idxs[device_idx]), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=False)
+            DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return val_loader
 
@@ -170,7 +182,9 @@ class dataLoader_imagenet(DataLoaderAbstract):
         '''
         for i in range(len(self.device_data_idxs)):
             self.device_data_idxs[i] = [int(j) for j in self.device_data_idxs[i]]
+            self.device_val_data_idxs[i] = [int(j) for j in self.device_val_data_idxs[i]]
         save_dict = {'device_data_idxs' : self.device_data_idxs, 
+                     'device_val_data_idxs' : self.device_val_data_idxs,
                      'group_idxs' : self.group_idxs}
         
         with open(save_path, 'w') as file_id:
@@ -189,6 +203,7 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         self.group_idxs = read_dict['group_idxs']
         self.device_data_idxs = read_dict['device_data_idxs']
+        self.device_val_data_idxs = read_dict['device_val_data_idxs']
         self.device_number = len(self.device_data_idxs)
         self.group_number = len(self.group_idxs)
 
@@ -212,7 +227,7 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             self.val_dataset, batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=False)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return val_loader
 

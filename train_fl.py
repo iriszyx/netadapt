@@ -112,7 +112,8 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
 
         state_sum = {}
         train_data_num = 0        
-        for device_id in range(len(device_data_idxs)):
+        clients = list(np.random.choice([i for i in range(len(device_data_idxs))], args.client_number, replace=False))
+        for device_id in clients:
             if device_id % 100 == 0:
                 print('Start Device {}'.format(device_id))
             if random.random() < skip_ratio: # skip this device
@@ -196,8 +197,8 @@ if __name__ == '__main__':
                         help='dataset: ' +
                         ' | '.join(data_loader_all) +
                         ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
-    # arg_parser.add_argument('-gn', '--group_number', type=int, default=13, 
-    #                         help='Group number.')
+    arg_parser.add_argument('-cl', '--client_number', type=int, default=100, 
+                            help='Clinet number.')
 
     args = arg_parser.parse_args()
     main(args)

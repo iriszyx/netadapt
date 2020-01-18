@@ -274,8 +274,11 @@ def _find_best_network_with_metric_fusion(worker_folder, iteration, num_blocks, 
 #     return w_avg
 
 def _fed_avg(w, data_num):
-    w_avg = {k: [torch.mul(w[i][k], data_num[i]) for i in range(len(w))] for k in w[0]}
+    if hasattr(torch.cuda, 'empty_cache'):
+        torch.cuda.empty_cache()
+    w_avg = {k: [torch.mul(w[i][k], data_num[i]).cpu() for i in range(len(w))] for k in w[0]}
     w_avg = {k: functools.reduce(lambda x,y: x + y, w_avg[k]) / np.sum(data_num) for k in w_avg}
+  
     return w_avg
 
 # def need_fl_tune(iter_id, total_iter_num):
@@ -323,6 +326,7 @@ def _model_fusion(worker_folder, iteration, block_idx, device_num, data_num):
         del s1
 
     w_glob = _fed_avg(w_array, data_num)
+    print(w_glob.keys())
 
     model_path = os.path.join(worker_folder,
                               common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(iteration, block_idx, 0))
@@ -466,7 +470,8 @@ def master(args):
 
         # Dataset loading and partition.
         data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-        val_loader = data_loader.get_all_validation_data_loader()
+        # val_loader = data_loader.get_all_validation_data_loader()
+        val_loader = data_loader.get_test_data_loader()
         current_accuracy = network_utils.evaluate(model, val_loader)
         current_block = None
         
@@ -499,13 +504,10 @@ def master(args):
     
     # Dataset loading and partition.
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    is_iid = True if args.dataset == 'cifar10' else False #TODO: in a smarter way
+    is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet') else False #TODO: in a smarter way
     device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
     group_idxs = data_loader.generate_group_based_on_device_data_size(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
-
-    # print(device_data_idxs)
-    # print(group_idxs)
 
 
     save_path = os.path.join(master_folder, 
@@ -536,7 +538,7 @@ def master(args):
         # Launch the workers.
         job_list = []
         
-        # Launch worker for each block
+        # # Launch worker for each block
         for block_idx in range(network_utils.get_num_simplifiable_blocks()):
             # Check and update the gpu availability.
             job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
@@ -545,7 +547,7 @@ def master(args):
                 time.sleep(_SLEEP_TIME)
                 job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
 
-            # Launch a worker.
+        #     # Launch a worker.
             job_list, available_gpus = _launch_worker(master_folder,
                                                       worker_folder, current_model_path, block_idx, args.resource_type,
                                                       target_resource, current_iter,
@@ -555,22 +557,20 @@ def master(args):
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
-        # Wait until all the workers finish.
+        # # Wait until all the workers finish.
         job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
         while job_list:
             time.sleep(_SLEEP_TIME)
             job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
 
-        # # Find the best model.
-        # best_accuracy, best_model_path, best_resource, best_block = (
-        #     _find_best_model(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), current_accuracy,
-        #                      current_resource))
 
         # Find best model by metric fusion
         group_val_data_num = [[data_loader.get_device_val_data_size(d) for d in group_idxs[group_id]] for group_id in range(args.group_number)]
         best_accuracy, best_resource, best_block = (
             _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
                                                   current_accuracy, current_resource, group_len, group_val_data_num))
+        del group_val_data_num
+
         # Model fusion, and generate best model at best model path
         group_id = best_block % len(group_len)
         device_num =  group_len[group_id]
@@ -672,7 +672,7 @@ if __name__ == '__main__':
     
     arg_parser.add_argument('-rd', '--resource_reduction_decay', type=float, default=0.96,
                             help='For each iteration, target resource = current resource - `init_resource_reduction`*(`resource_reduction_decay`**(iteration-1)) (default: 0.96).')
-    arg_parser.add_argument('-st', '--short_term_fine_tune_iteration', type=int, default=10, 
+    arg_parser.add_argument('-st', '--short_term_fine_tune_iteration', type=float, default=10, 
                             help='Short-term fine-tune iteration (default: 10).')
     
     arg_parser.add_argument('-lt', '--lookup_table_path', type=str, default=None, 

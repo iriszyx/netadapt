@@ -357,6 +357,9 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
                     print(' ')
 
                 iterations += 1
+                # TODO(zhaoyx): for large dataset
+                if iterations > 400:
+                    break
         print(' ')
         #TODO(zhaoyx): fix bug
         if num_samples < 1:

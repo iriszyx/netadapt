@@ -90,15 +90,19 @@ class dataLoader_cifar10(DataLoaderAbstract):
         self.device_number = device_number
         if is_iid:
             num_items = int(len(self.train_dataset)/(self.device_number))
+            num_val_items = int(len(self.val_dataset)/(self.device_number))
 
             self.device_data_idxs, all_idxs = [None for i in range(device_number)], [i for i in range(len(self.train_dataset))]
+            self.device_val_data_idxs, all_val_idxs = [None for i in range(device_number)], [i for i in range(len(self.val_dataset))]
 
             for i in range(self.device_number):
                 self.device_data_idxs[i] = list(np.random.choice(all_idxs, num_items, replace=False))
                 all_idxs = list(set(all_idxs) - set(self.device_data_idxs[i]))
+                self.device_val_data_idxs[i] = list(np.random.choice(all_val_idxs, num_val_items, replace=False))
+                all_val_idxs = list(set(all_val_idxs) - set(self.device_val_data_idxs[i]))
         else:
-            #TODO(zhaoyx): non-IID for cifar-10.
-            raise ValueError("need be iid for cifar-10.")
+            #TODO(zhaoyx): non-IID for cifar10.
+            raise ValueError("need be iid for imagenet.")
 
         return self.device_data_idxs
 
@@ -160,7 +164,7 @@ class dataLoader_cifar10(DataLoaderAbstract):
         '''
 
         val_loader = torch.utils.data.DataLoader(
-            DatasetSplit(self.val_dataset, self.device_data_idxs[device_idx]), batch_size=self.batch_size, 
+            DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=False)
 
         return val_loader
@@ -174,7 +178,9 @@ class dataLoader_cifar10(DataLoaderAbstract):
         '''
         for i in range(len(self.device_data_idxs)):
             self.device_data_idxs[i] = [int(j) for j in self.device_data_idxs[i]]
+            self.device_val_data_idxs[i] = [int(j) for j in self.device_val_data_idxs[i]]
         save_dict = {'device_data_idxs' : self.device_data_idxs, 
+                     'device_val_data_idxs' : self.device_val_data_idxs,
                      'group_idxs' : self.group_idxs}
         
         with open(save_path, 'w') as file_id:
@@ -193,6 +199,7 @@ class dataLoader_cifar10(DataLoaderAbstract):
 
         self.group_idxs = read_dict['group_idxs']
         self.device_data_idxs = read_dict['device_data_idxs']
+        self.device_val_data_idxs = read_dict['device_val_data_idxs']
         self.device_number = len(self.device_data_idxs)
         self.group_number = len(self.group_idxs)
 
