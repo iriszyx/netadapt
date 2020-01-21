@@ -62,6 +62,36 @@ def compute_accuracy(output, target):
     acc = acc/output.size(0)*100
     return acc
 
+def eval(test_loader, model, args):
+    batch_time = AverageMeter()
+    acc = AverageMeter()
+
+    # switch to eval mode
+    model.eval()
+
+    end = time.time()
+    for i, (images, target) in enumerate(test_loader):
+        if not args.no_cuda:
+            images = images.cuda()
+            target = target.cuda()
+        output = model(images)
+        batch_acc = compute_accuracy(output, target)
+        acc.update(batch_acc, images.size(0))
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        # Update statistics
+        estimated_time_remained = batch_time.get_avg()*(len(test_loader)-i-1)
+        fns.update_progress(i, len(test_loader), 
+            ESA='{:8.2f}'.format(estimated_time_remained)+'s',
+            acc='{:4.2f}'.format(float(batch_acc))
+            )
+    print()
+    print('Test accuracy: {:4.2f}% (time = {:8.2f}s)'.format(
+            float(acc.get_avg()), batch_time.get_avg()*len(test_loader)))
+    return float(acc.get_avg())
+
+
 def device_train(train_loader, model, args):
     # switch to train mode
     model.train()
@@ -104,6 +134,8 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
 
     device_data_idxs = data_loader.device_data_idxs
     model = torch.load(model_path)
+    best_acc = 0
+    test_loader = data_loader.get_test_data_loader()
 
     for e in range(args.global_epochs):
         print ('=================================')
@@ -133,10 +165,16 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
             del fine_tuned_model
         new_state = {k: torch.div(state_sum[k], train_data_num) for k in state_sum}
         model.load_state_dict(new_state)
-        torch.save(model, model_path + '_FLepoch_' + str(e))
+        
+        acc = eval(test_loader, model, args)
+        if acc > best_acc:
+            best_acc = acc
+            torch.save(model, 'fl_' + model_path)
+            print('Save model at epoch: ' + e)
 
         epoch_end = datetime.datetime.now()
         print ('Epoch ends. Running time: {} mins'.format((epoch_end - epoch_begin).seconds / 60))
+        print('Best accuracy:', best_acc)
 
 
 def main(args):
