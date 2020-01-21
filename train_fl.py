@@ -70,9 +70,8 @@ def eval(test_loader, model, args):
 
     end = time.time()
     for i, (images, target) in enumerate(test_loader):
-        if not args.no_cuda:
-            images = images.cuda()
-            target = target.cuda()
+        images = images.cuda()
+        target = target.cuda()
         output = model(images)
         batch_acc = compute_accuracy(output, target)
         acc.update(batch_acc, images.size(0))
