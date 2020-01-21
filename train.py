@@ -31,9 +31,10 @@ data_loader_all = sorted(name for name in dataLoader.__dict__
 
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 50))
+    lr = args.lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+    print('learning rate: ', lr)
    
 
 class AverageMeter(object):
@@ -71,6 +72,7 @@ def train(train_loader, model, criterion, optimizer, epoch, num_classes, args):
     acc = AverageMeter()
 
     # switch to train mode
+    model = model.cuda()
     model.train()
     
     print('===================================================================')
@@ -90,7 +92,11 @@ def train(train_loader, model, criterion, optimizer, epoch, num_classes, args):
 
         # compute output and loss
         output = model(images)
-        loss = criterion(output, target_onehot)
+        
+        if args.dataset == 'imagenet':
+            loss = criterion(output, target)
+        else:
+            loss = criterion(output, target_onehot)
         
         # measure accuracy and record loss
         batch_acc = compute_accuracy(output, target)
@@ -226,7 +232,7 @@ if __name__ == '__main__':
     # Dataset loading and partition.
     data_loader = dataLoader.__dict__[args.dataset](args.data)
     train_loader = data_loader.get_all_train_data_loader()
-    test_loader = data_loader.get_all_validation_data_loader()
+    test_loader = data_loader.get_test_data_loader()
     
     # Network
     cudnn.benchmark = True
@@ -242,23 +248,36 @@ if __name__ == '__main__':
 
     model_arch = args.arch
     model = models.__dict__[model_arch](num_classes=num_classes)
+
     criterion = nn.BCEWithLogitsLoss()
+    if args.dataset == 'imagenet':
+        criterion = nn.CrossEntropyLoss()
+
     if not args.no_cuda:
         model = model.cuda()
         criterion = criterion.cuda()
+
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
+
 
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
             print("Loading checkpoint '{}'".format(args.resume))
-            model = torch.load(args.resume)
+            if args.dataset == 'imagenet':
+                checkpoint = torch.load(args.resume) 
+                model.load_state_dict(checkpoint['state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                args.start_epoch = checkpoint['epoch']
+            else:
+                model = torch.load(args.resume)
 
         else:
             print("No checkpoint found at '{}'".format(args.resume))
             
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    
 
     # Train & evaluation
     best_acc = 0

@@ -30,9 +30,8 @@ def adjust_learning_rate(optimizer, epoch, args):
         param_group['lr'] = lr
 
 def get_cls_num(dataset):
-    # if dataset == 'cifar10': return 10
-    # else: 'No idea how many classes!'
-    return int(ommon.DATASET_CLASSES_PARAMS[dataset])
+
+    return int(common.DATASET_CLASSES_PARAMS[dataset])
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
