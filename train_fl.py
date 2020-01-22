@@ -94,6 +94,9 @@ def device_train(train_loader, model, args):
     # switch to train mode
     model.train()
     criterion = torch.nn.BCEWithLogitsLoss()
+    if args.dataset == 'imagenet':
+        criterion = torch.nn.CrossEntropyLoss()
+
     criterion.cuda()
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -112,7 +115,10 @@ def device_train(train_loader, model, args):
             target = target.cuda()
 
             output = model(images)
-            loss = criterion(output, target_onehot)
+            if args.dataset == 'imagenet':
+                loss = criterion(output, target)
+            else:
+                loss = criterion(output, target_onehot)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -141,7 +147,9 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
         epoch_begin = datetime.datetime.now()
 
         state_sum = {}
-        train_data_num = 0        
+        train_data_num = 0    
+        if args.client_number > len(device_data_idxs):
+            args.client_number = len(device_data_idxs)   
         clients = list(np.random.choice([i for i in range(len(device_data_idxs))], args.client_number, replace=False))
         for device_id in clients:
             if device_id % 100 == 0:
@@ -167,8 +175,9 @@ def run_fl(model_path, data_loader, args, skip_ratio=0.0):
         acc = eval(test_loader, model, args)
         if acc > best_acc:
             best_acc = acc
-            torch.save(model, 'fl_' + model_path)
-            print('Save model at epoch: ' + e)
+            torch.save(model, model_path + '_fl')
+            print('Save model at epoch: ' + str(e))
+        print('global iteration {}, acc = {} '.format(str(e), acc))
 
         epoch_end = datetime.datetime.now()
         print ('Epoch ends. Running time: {} mins'.format((epoch_end - epoch_begin).seconds / 60))

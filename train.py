@@ -92,7 +92,7 @@ def train(train_loader, model, criterion, optimizer, epoch, num_classes, args):
 
         # compute output and loss
         output = model(images)
-        
+
         if args.dataset == 'imagenet':
             loss = criterion(output, target)
         else:
@@ -266,13 +266,14 @@ if __name__ == '__main__':
     if args.resume:
         if os.path.isfile(args.resume):
             print("Loading checkpoint '{}'".format(args.resume))
-            if args.dataset == 'imagenet':
-                checkpoint = torch.load(args.resume) 
-                model.load_state_dict(checkpoint['state_dict'])
-                optimizer.load_state_dict(checkpoint['optimizer'])
-                args.start_epoch = checkpoint['epoch']
-            else:
-                model = torch.load(args.resume)
+            # if args.dataset == 'imagenet':
+            #     checkpoint = torch.load(args.resume) 
+            #     model.load_state_dict(checkpoint['state_dict'])
+            #     optimizer.load_state_dict(checkpoint['optimizer'])
+            #     args.start_epoch = checkpoint['epoch']
+            # else:
+            #     model = torch.load(args.resume)
+            model = torch.load(args.resume)
 
         else:
             print("No checkpoint found at '{}'".format(args.resume))
@@ -285,7 +286,7 @@ if __name__ == '__main__':
     
     for epoch in range(args.start_epoch, args.epochs):
         print('Epoch [{}/{}]'.format(epoch+1, args.epochs - args.start_epoch))
-        adjust_learning_rate(optimizer, epoch, args)
+        # adjust_learning_rate(optimizer, epoch, args)
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, num_classes, args)
         acc = eval(test_loader, model, args)
