@@ -174,7 +174,7 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
         ratio_resource_accuracy = (starting_accuracy - accuracy + 1e-6) / (starting_resource - resource + 1e-5)
         
         print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
-        if resource < starting_resource and ratio_resource_accuracy < best_ratio:
+        if resource < starting_resource and ratio_resource_accuracy < best_ratio and ratio_resource_accuracy >= 0:
         #if resource < starting_resource and accuracy > best_accuracy:
             best_ratio = ratio_resource_accuracy
             best_accuracy = accuracy
@@ -470,8 +470,8 @@ def master(args):
 
         # Dataset loading and partition.
         data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-        # val_loader = data_loader.get_all_validation_data_loader()
-        val_loader = data_loader.get_test_data_loader()
+        val_loader = data_loader.get_all_validation_data_loader()
+        # val_loader = data_loader.get_test_data_loader()
         current_accuracy = network_utils.evaluate(model, val_loader)
         current_block = None
         
