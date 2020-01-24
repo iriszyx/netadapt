@@ -173,6 +173,26 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         return val_loader
 
+    def validation_data_loader_of_devices(self, device_idxs):
+        '''
+            Generate validation data loader for specified device.
+            Input:
+                `device_idx`: (int) index of the device
+
+            Output:
+                `validation_data_loader`: validation data loader for the device 
+        '''
+        array = []
+        for device_idx in device_idxs:
+            array.extend(self.device_val_data_idxs[device_idx])
+
+        val_loader = torch.utils.data.DataLoader(
+            DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+
+        return val_loader
+
+
     def dump(self, save_path):
         '''
             Generate validation data loader for specified device.

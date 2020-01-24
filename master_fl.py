@@ -563,24 +563,10 @@ def master(args):
             time.sleep(_SLEEP_TIME)
             job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
 
-
-        # Find best model by metric fusion
-        group_val_data_num = [[data_loader.get_device_val_data_size(d) for d in group_idxs[group_id]] for group_id in range(args.group_number)]
-        best_accuracy, best_resource, best_block = (
-            _find_best_network_with_metric_fusion(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), 
-                                                  current_accuracy, current_resource, group_len, group_val_data_num))
-        del group_val_data_num
-
-        # Model fusion, and generate best model at best model path
-        group_id = best_block % len(group_len)
-        device_num =  group_len[group_id]
-        group_data_num = [data_loader.get_device_data_size(d) for d in group_idxs[group_id]]
-        print ('Group: {}, group device data: {}'.format(group_id, group_data_num))
-        best_model_path = _model_fusion(worker_folder, current_iter, best_block, device_num, group_data_num)
-
-        # Check if we need a long-term fine-tune (federated learning)
-        # if need_fl_tune(current_iter, args.max_iters):
-        #     best_model_path = run_fl(best_model_path, data_loader, network_utils)
+        # Find the best model.
+        best_accuracy, best_model_path, best_resource, best_block = (
+            _find_best_model(worker_folder, current_iter, network_utils.get_num_simplifiable_blocks(), current_accuracy,
+                             current_resource))
 
         # Check whether the target_resource is achieved.
         if not best_model_path:
@@ -588,6 +574,7 @@ def master(args):
         if best_resource > target_resource:
             warnMsg = "Iteration {}: target resource {} is not achieved. Current best resource is {}".format(current_iter, target_resource, best_resource)
             warnings.warn(warnMsg)
+
         
         # Update the variables.
         current_model_path = os.path.join(master_folder,

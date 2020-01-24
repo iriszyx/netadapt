@@ -38,7 +38,7 @@ class TrainDatasetUserSplit(Dataset):
         transform = transforms.Compose([
             # transforms.RandomCrop(32, padding=4), 
             transforms.Resize(224),
-            # transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
@@ -93,7 +93,7 @@ class trainset(Dataset):
         transform = transforms.Compose([
             # transforms.RandomCrop(32, padding=4), 
             transforms.Resize(224),
-            # transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
@@ -169,7 +169,8 @@ class dataLoader_celeba(DataLoaderAbstract):
 
         self.dataset_users = users       
         self.train_dataset = train_data
-        self.val_dataset = test_data
+        self.val_dataset = train_data
+        self.test_dataset = test_data
         self.dataset_path = dataset_path
 
 
@@ -286,7 +287,7 @@ class dataLoader_celeba(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             TestDatasetUserSplit(self.val_dataset, user_name, self.dataset_path), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=False)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return val_loader
 
@@ -336,14 +337,14 @@ class dataLoader_celeba(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             testset(self.val_dataset, self.dataset_users, self.dataset_path), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=False)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return val_loader
 
     def get_test_data_loader(self):
 
         val_loader = torch.utils.data.DataLoader(
-            testset(self.val_dataset, self.dataset_users, self.dataset_path), batch_size=self.batch_size, 
+            testset(self.test_dataset, self.dataset_users, self.dataset_path), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=False)
 
         return val_loader
