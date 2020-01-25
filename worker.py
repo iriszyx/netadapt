@@ -89,19 +89,27 @@ def worker(args):
         device_model = copy.deepcopy(simplified_model)
         #TODO(zhaoyx): modify the logic
         if args.arch == 'mobilenetfed' or args.arch == 'mobilenet_imagenet':
-            train_loader = data_loader.training_data_loader(devices[i])
-            num_classes = int(common.DATASET_CLASSES_PARAMS[args.dataset])
-            fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader, num_classes)
-            val_loader = data_loader.validation_data_loader(devices[i])
-            fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model,val_loader)
+            # for original netadapt
+            if args.device_number == 1 and args.group_number == 1:
+                train_loader = data_loader.get_all_train_data_loader()
+                num_classes = int(common.DATASET_CLASSES_PARAMS[args.dataset])
+                fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader, num_classes)
+                val_loader = data_loader.get_all_validation_data_loader()
+                fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model,val_loader)
+            # for ours
+            else:
+                train_loader = data_loader.training_data_loader(devices[i])
+                num_classes = int(common.DATASET_CLASSES_PARAMS[args.dataset])
+                fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader, num_classes)
+                val_loader = data_loader.validation_data_loader(devices[i])
+                fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model,val_loader)
 
         else:
             fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration)
             fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
 
         print('Accuracy after finetune:', fine_tuned_accuracy)
-        # TODO(zhaoyx): measure/simulate latency for different devices.
-        latency = abs(np.random.normal(1))
+
 
         # Save the results.
         torch.save(fine_tuned_model,

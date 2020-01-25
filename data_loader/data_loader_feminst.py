@@ -36,7 +36,7 @@ class TrainDatasetUserSplit(Dataset):
 
         transform = transforms.Compose([
             transforms.Resize(224),
-            transforms.RandomHorizontalFlip(),
+            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -86,7 +86,7 @@ class trainset(Dataset):
         
         transform = transforms.Compose([
             transforms.Resize(224),
-            transforms.RandomHorizontalFlip(),
+            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

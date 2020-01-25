@@ -121,6 +121,9 @@ def train(train_loader, model, criterion, optimizer, epoch, num_classes, args):
             acc='{:4.2f}%'.format(float(batch_acc))
             )
 
+        # if i > 500:
+        #     break
+
     print()
     print('Finish epoch {}: time = {:8.2f}s, loss = {:4.2f}, acc = {:4.2f}%'.format(
             epoch+1, batch_time.get_avg()*len(train_loader), 
@@ -286,7 +289,7 @@ if __name__ == '__main__':
     
     for epoch in range(args.start_epoch, args.epochs):
         print('Epoch [{}/{}]'.format(epoch+1, args.epochs - args.start_epoch))
-        # adjust_learning_rate(optimizer, epoch, args)
+        adjust_learning_rate(optimizer, epoch, args)
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, num_classes, args)
         acc = eval(test_loader, model, args)

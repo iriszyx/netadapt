@@ -91,8 +91,14 @@ def eval(test_loader, model, args):
 
 
 def device_train(train_loader, model, args):
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    acc = AverageMeter()
+
     # switch to train mode
+    model = model.cuda()
     model.train()
+
     criterion = torch.nn.BCEWithLogitsLoss()
     if args.dataset == 'imagenet':
         criterion = torch.nn.CrossEntropyLoss()
@@ -101,6 +107,8 @@ def device_train(train_loader, model, args):
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+
+    print('===================================================================')
         
     for k in range(args.local_epochs):
         for i, (images, target) in enumerate(train_loader):
@@ -119,9 +127,30 @@ def device_train(train_loader, model, args):
                 loss = criterion(output, target)
             else:
                 loss = criterion(output, target_onehot)
+
+            # measure accuracy and record loss
+            batch_acc = compute_accuracy(output, target)
+        
+            losses.update(loss.item(), images.size(0))
+            acc.update(batch_acc, images.size(0))
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+        
+            # Update statistics
+            estimated_time_remained = batch_time.get_avg()*(len(train_loader)-i-1)
+            fns.update_progress(i, len(train_loader), 
+                ESA='{:8.2f}'.format(estimated_time_remained)+'s',
+                loss='{:4.2f}'.format(loss.item()),
+                acc='{:4.2f}%'.format(float(batch_acc))
+                )
+
+
     return model
 
 def run_fl(model_path, data_loader, args, skip_ratio=0.0):

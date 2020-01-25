@@ -360,8 +360,8 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
 
                 iterations += 1
                 # TODO(zhaoyx): for large dataset
-                if iterations > 400:
-                    break
+                # if iterations > 400:
+                #     break
         print(' ')
         #TODO(zhaoyx): fix bug
         if num_samples < 1:
