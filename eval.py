@@ -162,8 +162,13 @@ if __name__ == '__main__':
     
     # Evaluation
     filename = os.path.join(args.save_dir)
-
+  
+    # if args.dataset == 'imagenet':
+    #     checkpoint = torch.load(filename) 
+    #     model.load_state_dict(checkpoint['state_dict'])
+    # else:
     model = torch.load(filename) 
+
     model = model.cuda()  
     print(model)
         

@@ -194,6 +194,8 @@ if __name__ == '__main__':
                             help='path to save models (default: models/')
     arg_parser.add_argument('--no-cuda', action='store_true', default=False, dest='no_cuda',
                     help='disables training on GPU')
+    arg_parser.add_argument('--multiplier', default=1.0, type=float,
+                    help='model conv depth (model size)')
     arg_parser.add_argument('-d', '--dataset',  default='cifar10', 
                         choices=data_loader_all,
                         help='dataset: ' +
@@ -250,7 +252,7 @@ if __name__ == '__main__':
     num_classes = common.DATASET_CLASSES_PARAMS[args.dataset]
 
     model_arch = args.arch
-    model = models.__dict__[model_arch](num_classes=num_classes)
+    model = models.__dict__[model_arch](num_classes=num_classes, multiplier=args.multiplier)
 
     criterion = nn.BCEWithLogitsLoss()
     if args.dataset == 'imagenet':

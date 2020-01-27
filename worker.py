@@ -109,7 +109,8 @@ def worker(args):
             fine_tuned_accuracy = network_utils.evaluate(fine_tuned_model)
 
         print('Accuracy after finetune:', fine_tuned_accuracy)
-
+        # TODO(zhaoyx): measure/simulate latency for different devices.
+        latency = abs(np.random.normal(1))
 
         # Save the results.
         torch.save(fine_tuned_model,

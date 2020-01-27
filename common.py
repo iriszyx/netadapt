@@ -23,5 +23,6 @@ DATASET_CLASSES_PARAMS = {
     'cifar10': 10,
     'feminst': 62,
     'celeba' : 2,
+    'celeba_tiny' : 2,
     'imagenet' : 1000,
 }

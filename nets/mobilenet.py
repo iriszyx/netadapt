@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class MobileNet(nn.Module):
-    def __init__(self, relu6=False):
+    def __init__(self, relu6=False, multiplier=1.0):
         super(MobileNet, self).__init__()
 
         def relu(relu6):
@@ -13,21 +13,27 @@ class MobileNet(nn.Module):
 
         def conv_bn(inp, oup, stride, relu6):
             return nn.Sequential(
-                nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
-                nn.BatchNorm2d(oup),
+                nn.Conv2d(inp, int(oup * multiplier), 3, stride, 1, bias=False),
+                nn.BatchNorm2d(int(oup * multiplier)),
                 relu(relu6),
             )
 
         def conv_dw(inp, oup, stride, relu6):
             return nn.Sequential(
-                nn.Conv2d(inp, inp, 3, stride, 1, groups=inp, bias=False),
-                nn.BatchNorm2d(inp),
+                nn.Conv2d(int(inp * multiplier), int(inp * multiplier),
+                        3, stride, 1, groups=int(inp * multiplier), bias=False),
+                nn.BatchNorm2d(int(inp * multiplier)),
                 relu(relu6),
     
-                nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(oup),
+                nn.Conv2d(int(inp * multiplier), int(oup * multiplier), 1, 1, 0, bias=False),
+                nn.BatchNorm2d(int(oup * multiplier)),
                 relu(relu6),
             )
+
+        if multiplier == 1.0:
+            last_pool_size = 7
+        else:
+            last_pool_size = 3
 
         self.model = nn.Sequential(
             conv_bn(  3,  32, 2, relu6), 
@@ -44,9 +50,9 @@ class MobileNet(nn.Module):
             conv_dw(512, 512, 1, relu6),
             conv_dw(512, 1024, 2, relu6),
             conv_dw(1024, 1024, 1, relu6),
-            nn.AvgPool2d(7),
+            nn.AvgPool2d(last_pool_size),
         )
-        self.fc = nn.Linear(1024, 1000)
+        self.fc = nn.Linear(int(1024 * multiplier), 1000)
 
     def forward(self, x):
         x = self.model(x)
@@ -54,8 +60,8 @@ class MobileNet(nn.Module):
         x = self.fc(x)
         return x
     
-def mobilenet(pretrained=False, progress=False, num_classes=1000):
-    model = MobileNet()
+def mobilenet(pretrained=False, progress=False, num_classes=1000, multiplier=1.0):
+    model = MobileNet(multiplier=multiplier)
     if pretrained:
         print('Cannot download pretrained model')
     if num_classes != 1000:
