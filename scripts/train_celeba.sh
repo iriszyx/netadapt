@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=3 python train.py data/ --dir models/mobilenet/celeba_model.pth.tar --arch mobilenet -d celeba --lr 0.001
