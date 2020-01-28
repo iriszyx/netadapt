@@ -27,7 +27,7 @@ import time
 # Define constants.
 _MASTER_FOLDER_FILENAME = 'master'
 _WORKER_FOLDER_FILENAME = 'worker'
-_WORKER_PY_FILENAME = 'worker.py'
+_WORKER_PY_FILENAME = 'worker_fl.py'
 _HISTORY_PICKLE_FILENAME = 'history.pickle'
 _HISTORY_TEXT_FILENAME = 'history.txt'
 _SLEEP_TIME = 1
@@ -174,8 +174,8 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
         ratio_resource_accuracy = (starting_accuracy - accuracy + 1e-6) / (starting_resource - resource + 1e-5)
         
         print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
-        if resource < starting_resource and ratio_resource_accuracy < best_ratio:
-        #if resource < starting_resource and accuracy > best_accuracy:
+        #if resource < starting_resource and ratio_resource_accuracy < best_ratio:
+        if resource < starting_resource and accuracy > best_accuracy:
             best_ratio = ratio_resource_accuracy
             best_accuracy = accuracy
             best_model_path = os.path.join(worker_folder,
@@ -587,6 +587,9 @@ def master(args):
         
         if args.save_interval == -1 or (current_iter % args.save_interval != 0):
             for block_idx in range(network_utils.get_num_simplifiable_blocks()):
+                temp_model_path = os.path.join(worker_folder, common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
+                os.remove(temp_model_path)
+                print('Remove', temp_model_path)
                 device_num = group_len[block_idx % len(group_len)]
                 for worker_idx in range(device_num):
                     temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
