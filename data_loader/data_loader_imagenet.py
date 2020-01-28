@@ -187,7 +187,7 @@ class dataLoader_imagenet(DataLoaderAbstract):
             array.extend(self.device_val_data_idxs[device_idx])
 
         val_loader = torch.utils.data.DataLoader(
-            DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
+            DatasetSplit(self.val_dataset, array), batch_size=self.batch_size, 
             num_workers=self.num_workers, pin_memory=True, shuffle=True)
 
         return val_loader
