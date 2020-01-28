@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=3 python train.py data/ --dir models/mobilenet/feminst_model_001.pth.tar --arch mobilenet -d feminst --lr 0.01
