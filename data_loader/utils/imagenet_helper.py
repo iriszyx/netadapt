@@ -210,7 +210,7 @@ def get_imagenet_iter_dali_with_custom_dataloader(dataset_loader, batch_size, nu
     pipe = ExternalSourceTrainPipeline(source=dataset_loader, batch_size=batch_size, num_threads=num_threads, device_id=0)
     pipe.build()
 
-    dali_iter = DALIGenericIterator([pipe], ['images', 'labels'], size = pipe.size()*batch_size)
+    dali_iter = DALIGenericIterator([pipe], ['data', 'label'], size = pipe.size()*batch_size)
     return dali_iter
 
 def get_imagenet_iter_dali_with_custom_dataset(type, image_dir, batch_size, num_threads, device_id, num_gpus, crop, val_size=256,
@@ -242,26 +242,27 @@ def get_imagenet_iter_dali_with_custom_dataset(type, image_dir, batch_size, num_
 
     pipe.build()
     
-    dali_iter = DALIGenericIterator([pipe], ['images', 'labels'], size = pipe.size()*batch_size)
+    dali_iter = DALIGenericIterator([pipe], ['data', 'label'], size = pipe.size()*batch_size)
     return dali_iter
 
 
 if __name__ == '__main__':
-    train_loader = get_imagenet_iter_dali(type='train', image_dir='/data1/dataset', batch_size=256,
-                                          num_threads=16, crop=224, device_id=0, num_gpus=1)
-    print('start iterate')
-    start = time.time()
-    num_iter = 0
-    for i, data in enumerate(train_loader):
-        images = data[0]["data"].cuda(non_blocking=True)
-        labels = data[0]["label"].squeeze().long().cuda(non_blocking=True)
-        num_iter += 1
-        if num_iter == 100:
-            break
-    end = time.time()
-    print('end iterate')
-    print(num_iter)
-    print('dali iterate time: %fs' % (end - start))
+    # train_loader = get_imagenet_iter_dali(type='train', image_dir='/data1/dataset', batch_size=256,
+    #                                       num_threads=16, crop=224, device_id=0, num_gpus=1)
+    # print('start iterate')
+    # start = time.time()
+    # num_iter = 0
+    # for i, data in enumerate(train_loader):
+    #     print(data)
+    #     images = data[0]["data"].cuda(non_blocking=True)
+    #     labels = data[0]["label"].squeeze().long().cuda(non_blocking=True)
+    #     num_iter += 1
+    #     if num_iter == 1:
+    #         break
+    # end = time.time()
+    # print('end iterate')
+    # print(num_iter)
+    # print('dali iterate time: %fs' % (end - start))
 
 
    
@@ -272,30 +273,34 @@ if __name__ == '__main__':
     start = time.time()
     num_iter = 0
     for i, data in enumerate(train_loader):
-        images = data[0]["images"].cuda(non_blocking=True)
-        labels = data[0]["labels"].squeeze().long().cuda(non_blocking=True)
+        print(data)
+        images = data[0]["data"].cuda(non_blocking=True)
+        labels = data[0]["label"].squeeze().long().cuda(non_blocking=True)
+        print(labels)
+        labels = data[0]["label"].cuda(non_blocking=True)
+        print(labels)
         num_iter+=1
-        if num_iter == 100:
+        if num_iter == 1:
             break
     end = time.time()
     print('end iterate')
     print(num_iter)
     print('dali iterate time: %fs' % (end - start))
 
-    train_loader = get_imagenet_iter_torch(type='train', image_dir='/data1/dataset', batch_size=256,
-                                           num_threads=16, crop=224, device_id=0, num_gpus=1)
-    print('start iterate')
-    start = time.time()
-    num_iter = 0
-    for i, data in enumerate(train_loader):
-        # images = data[0].cuda(non_blocking=True)
-        # labels = data[1].cuda(non_blocking=True)
-        images = data[0].cuda()
-        labels = data[1].cuda()
-        num_iter += 1
-        if num_iter == 100:
-            break
-    end = time.time()
-    print('end iterate')
-    print(num_iter)
-    print('torch iterate time: %fs' % (end - start))
+    # train_loader = get_imagenet_iter_torch(type='train', image_dir='/data1/dataset', batch_size=256,
+    #                                        num_threads=16, crop=224, device_id=0, num_gpus=1)
+    # print('start iterate')
+    # start = time.time()
+    # num_iter = 0
+    # for i, data in enumerate(train_loader):
+    #     # images = data[0].cuda(non_blocking=True)
+    #     # labels = data[1].cuda(non_blocking=True)
+    #     images = data[0].cuda()
+    #     labels = data[1].cuda()
+    #     num_iter += 1
+    #     if num_iter == 100:
+    #         break
+    # end = time.time()
+    # print('end iterate')
+    # print(num_iter)
+    # print('torch iterate time: %fs' % (end - start))

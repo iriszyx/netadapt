@@ -2,5 +2,5 @@ from .data_loader_abstract import *
 from .data_loader_cifar10 import *
 from .data_loader_feminst import *
 from .data_loader_celeba import *
-from .data_loader_celeba_tiny import *
 from .data_loader_imagenet import *
+from .data_loader_imagenet_dali import *
