@@ -166,7 +166,7 @@ class dataLoader_imagenet_dali(DataLoaderAbstract):
 
         train_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.train_dataset, self.device_data_idxs[device_idx]), batch_size=self.batch_size, 
-            shuffle=True, num_workers=self.num_workers, pin_memory=True, collate_fn=collate_fn)
+            shuffle=True, num_workers=self.num_workers, pin_memory=True, collate_fn=collate_fn, drop_last=True)
 
         return get_imagenet_iter_dali_with_custom_dataloader(train_loader, self.batch_size, self.num_workers)
 
@@ -183,7 +183,7 @@ class dataLoader_imagenet_dali(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn, drop_last=True)
 
         return get_imagenet_iter_dali_with_custom_dataloader(val_loader, self.batch_size, self.num_workers)
 
@@ -202,7 +202,7 @@ class dataLoader_imagenet_dali(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.val_dataset, array), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn, drop_last=True)
 
         return get_imagenet_iter_dali_with_custom_dataloader(val_loader, self.batch_size, self.num_workers)
 

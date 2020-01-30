@@ -295,9 +295,9 @@ class networkUtils_mobilenet_imagenet_dali(NetworkUtilsAbstract):
         # dataloader_iter = iter(train_loader)
         # total_data_size = len(train_loader.dataset)
         # iterations = math.ceil(iterations * total_data_size / self.batch_size)
-        print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
+        print('Fine tune iteration = {}'.format(iterations))
 
-        for e in range(iterations):
+        for e in range(int(iterations)):
             for i, data in enumerate(train_loader):
                 input = data[0]["data"]
                 target = data[0]["label"].squeeze().long()
