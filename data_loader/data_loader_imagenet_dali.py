@@ -15,10 +15,12 @@ from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import json
 from .utils.imagenet_helper import *
+import io
 
 sys.path.append(os.path.abspath('../'))
 
-from constants import *
+from constants import *    
+
 
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
@@ -58,27 +60,37 @@ class dataLoader_imagenet_dali(DataLoaderAbstract):
         self.num_workers = 8
 
         # Data loading code
+        # transform = transforms.Compose([
+        #     transforms.RandomResizedCrop(224),
+        #     transforms.RandomHorizontalFlip(),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+        #                          std = [ 0.229, 0.224, 0.225 ]),
+        # ])    
+        # val_transform = transforms.Compose([
+        #     transforms.Scale(256),
+        #     transforms.CenterCrop(224),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+        #                          std = [ 0.229, 0.224, 0.225 ]),
+        # ])
+        def _tr(im_resize):
+            im_resize = im_resize.convert('RGB')
+            buf = io.BytesIO()
+            im_resize.save(buf, format='JPEG')
+            ret = np.frombuffer(buf.getvalue(), dtype = np.uint8)
+            return ret
+
         transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
-                                 std = [ 0.229, 0.224, 0.225 ]),
-        ])    
-        val_transform = transforms.Compose([
-            transforms.Scale(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
-                                 std = [ 0.229, 0.224, 0.225 ]),
-        ])
+            transforms.Lambda(lambda x: _tr(x)),
+            ])
         self.dataset_path = dataset_path
 
         traindir = os.path.join(dataset_path, 'train')
         valdir = os.path.join(dataset_path, 'val')
         self.train_dataset = datasets.ImageFolder(traindir, transform)
-        self.val_dataset = datasets.ImageFolder(traindir, val_transform)
-        self.test_dataset = datasets.ImageFolder(valdir, val_transform)
+        self.val_dataset = datasets.ImageFolder(traindir, transform)
+        self.test_dataset = datasets.ImageFolder(valdir, transform)
 
         # train_loader = torch.utils.data.DataLoader(
         #     train, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)        
