@@ -58,7 +58,7 @@ _MEASURE_LATENCY_BATCH_SIZE = 128
 #         return image, label
 
 
-class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
+class networkUtils_mobilenet_imagenet_dali(NetworkUtilsAbstract):
     num_simplifiable_blocks = None
     input_data_shape = None
     #train_dataset = None
@@ -378,5 +378,5 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         return acc/num_samples*100
     
 
-def mobilenet_imagenet(model, input_data_shape, dataset_path, finetune_lr=1e-3):
-    return networkUtils_mobilenet_imagenet(model, input_data_shape, dataset_path, finetune_lr)
+def mobilenet_imagenet_dali(model, input_data_shape, dataset_path, finetune_lr=1e-3):
+    return networkUtils_mobilenet_imagenet_dali(model, input_data_shape, dataset_path, finetune_lr)

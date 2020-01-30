@@ -426,6 +426,17 @@ def master(args):
         print(('Resume from iteration {:>3}: current_accuracy = {:>8.3f}, '
                'current_resource = {:>8.3f}').format(current_iter, current_accuracy, current_resource))
         print('arguments:', args)
+
+        # Dataset loading and partition.
+        data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+        save_path = os.path.join(master_folder, 
+                                 common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
+        data_loader.load(save_path)
+        is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet' or args.dataset == 'imagenet_dali') else False #TODO: in a smarter way
+        device_data_idxs = data_loader.device_data_idxs
+        group_idxs = data_loader.group_idxs
+        group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
+
         
     else:
         # Initialize the iteration.
@@ -502,17 +513,17 @@ def master(args):
         print(('Start from iteration {:>3}: current_accuracy = {:>8.3f}, '
                'current_resource = {:>8.3f}').format(current_iter, current_accuracy, current_resource))
     
-    # Dataset loading and partition.
-    data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet' or args.dataset == 'imagenet_dali') else False #TODO: in a smarter way
-    device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
-    group_idxs = data_loader.generate_group_based_on_device_data_size(args.group_number)
-    group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
+        # Dataset loading and partition.
+        data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
+        is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet' or args.dataset == 'imagenet_dali') else False #TODO: in a smarter way
+        device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
+        group_idxs = data_loader.generate_group_based_on_device_data_size(args.group_number)
+        group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
 
 
-    save_path = os.path.join(master_folder, 
-                             common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
-    data_loader.dump(save_path)    
+        save_path = os.path.join(master_folder, 
+                                 common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
+        data_loader.dump(save_path)    
                 
     init_resource = current_resource
 
