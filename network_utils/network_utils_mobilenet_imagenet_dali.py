@@ -292,8 +292,8 @@ class networkUtils_mobilenet_imagenet_dali(NetworkUtilsAbstract):
         model = model.cuda()
         model.train()
 
-        dataloader_iter = iter(train_loader)
-        total_data_size = len(train_loader.dataset)
+        # dataloader_iter = iter(train_loader)
+        # total_data_size = len(train_loader.dataset)
         # iterations = math.ceil(iterations * total_data_size / self.batch_size)
         print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
 
@@ -359,7 +359,7 @@ class networkUtils_mobilenet_imagenet_dali(NetworkUtilsAbstract):
                 num_samples += pred.shape[0]
                 
                 if i % print_frequency == 0:
-                    fns.update_progress(i, len(val_loader))
+                    fns.update_progress(i, 10010)
                     print(' ')
 
                 iterations += 1
