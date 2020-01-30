@@ -296,34 +296,33 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         total_data_size = len(train_loader.dataset)
         iterations = math.ceil(iterations * total_data_size / self.batch_size)
         print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
-        for i in range(iterations):
-            try:
-                data = next(dataloader_iter)
-            except:
-                dataloader_iter = iter(train_loader)
-                data = next(dataloader_iter)
 
-            input = data[0]["data"]
-            target = data[0]["label"].squeeze().long()
-                
-            if i % print_frequency == 0:
-                print('Fine-tuning iteration {}'.format(i))
-                sys.stdout.flush()
+        for e in range(iterations):
+            for i, data in enumerate(train_loader):
+                input = data[0]["data"]
+                target = data[0]["label"].squeeze().long()
+
+                if i % print_frequency == 0:
+                    print('Fine-tuning iteration {}'.format(i))
+                    sys.stdout.flush()
             
-            target.unsqueeze_(1)
-            target_onehot = torch.FloatTensor(target.shape[0], num_classes)
-            target_onehot.zero_()
-            target_onehot.scatter_(1, target, 1)
-            target.squeeze_(1)
-            input, target = input.cuda(non_blocking=True), target.cuda(non_blocking=True)
-            target_onehot = target_onehot.cuda()
+                target.unsqueeze_(1)
+                target_onehot = torch.FloatTensor(target.shape[0], num_classes)
+                target_onehot.zero_()
+                target_onehot.scatter_(1, target, 1)
+                target.squeeze_(1)
+                input, target = input.cuda(non_blocking=True), target.cuda(non_blocking=True)
+                target_onehot = target_onehot.cuda()    
 
-            pred = model(input)
-            loss = self.criterion(pred, target)
-            # loss = self.criterion(pred, target_onehot)
-            optimizer.zero_grad()
-            loss.backward()  # compute gradient and do SGD step
-            optimizer.step()
+                pred = model(input)
+                loss = self.criterion(pred, target)
+                # loss = self.criterion(pred, target_onehot)
+                optimizer.zero_grad()
+                loss.backward()  # compute gradient and do SGD step
+                optimizer.step()
+
+            train_loader.reset()
+
 
         fine_tune_end = datetime.datetime.now()
         print ('Fine tune time: {} seconds'.format((fine_tune_end - fine_tune_begin).seconds))
