@@ -294,7 +294,7 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
 
         dataloader_iter = iter(train_loader)
         total_data_size = len(train_loader.dataset)
-        iterations = math.ceil(iterations * total_data_size / self.batch_size)
+        # iterations = math.ceil(iterations * total_data_size / self.batch_size)
         print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
 
         for e in range(iterations):

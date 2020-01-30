@@ -129,12 +129,13 @@ def worker(args):
     worker_begin = datetime.datetime.now()
 
     # fl tune
-    fl_iter_num = 5
+    fl_iter_num = 10
     fl_model = simplified_model
     best_acc = 0
     group_data_num = [data_loader.get_device_data_size(d) for d in devices]
     # TODO()
-    global_val_loader = data_loader.validation_data_loader_of_devices(devices)
+    global_val_loader = data_loader.get_all_validation_data_loader()
+    #data_loader.validation_data_loader_of_devices(devices)
 
     for fl_iter in range(fl_iter_num):
 
@@ -237,7 +238,6 @@ if __name__ == '__main__':
                         help='dataset: ' +
                         ' | '.join(data_loader_all) +
                         ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
-    
 
     args = arg_parser.parse_args()
 

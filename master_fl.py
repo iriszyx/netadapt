@@ -174,8 +174,8 @@ def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, st
         ratio_resource_accuracy = (starting_accuracy - accuracy + 1e-6) / (starting_resource - resource + 1e-5)
         
         print('Block id {}: resource {}, accuracy {}'.format(block_idx, resource, accuracy))
-        #if resource < starting_resource and ratio_resource_accuracy < best_ratio:
-        if resource < starting_resource and accuracy > best_accuracy:
+        if resource < starting_resource and ratio_resource_accuracy < best_ratio:
+        #if resource < starting_resource and accuracy > best_accuracy:
             best_ratio = ratio_resource_accuracy
             best_accuracy = accuracy
             best_model_path = os.path.join(worker_folder,
@@ -504,7 +504,7 @@ def master(args):
     
     # Dataset loading and partition.
     data_loader = dataLoader.__dict__[args.dataset](args.dataset_path)
-    is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet') else False #TODO: in a smarter way
+    is_iid = True if (args.dataset == 'cifar10' or args.dataset == 'imagenet' or args.dataset == 'imagenet_dali') else False #TODO: in a smarter way
     device_data_idxs = data_loader.generate_device_data(args.device_number,is_iid)
     group_idxs = data_loader.generate_group_based_on_device_data_size(args.group_number)
     group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
