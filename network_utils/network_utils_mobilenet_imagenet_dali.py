@@ -58,7 +58,7 @@ _MEASURE_LATENCY_BATCH_SIZE = 128
 #         return image, label
 
 
-class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
+class networkUtils_mobilenet_imagenet_dali(NetworkUtilsAbstract):
     num_simplifiable_blocks = None
     input_data_shape = None
     #train_dataset = None
@@ -292,35 +292,37 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         model = model.cuda()
         model.train()
 
-        dataloader_iter = iter(train_loader)
-        total_data_size = len(train_loader.dataset)
-        iterations = math.ceil(iterations * total_data_size / self.batch_size)
+        # dataloader_iter = iter(train_loader)
+        # total_data_size = len(train_loader.dataset)
+        # iterations = math.ceil(iterations * total_data_size / self.batch_size)
         print('Fine tune iteration = {}, total_data_size = {}'.format(iterations, total_data_size))
-        for i in range(iterations):
-            try:
-                (input, target) = next(dataloader_iter)
-            except:
-                dataloader_iter = iter(train_loader)
-                (input, target) = next(dataloader_iter)
-                
-            if i % print_frequency == 0:
-                print('Fine-tuning iteration {}'.format(i))
-                sys.stdout.flush()
-            
-            target.unsqueeze_(1)
-            target_onehot = torch.FloatTensor(target.shape[0], num_classes)
-            target_onehot.zero_()
-            target_onehot.scatter_(1, target, 1)
-            target.squeeze_(1)
-            input, target = input.cuda(), target.cuda()
-            target_onehot = target_onehot.cuda()
 
-            pred = model(input)
-            loss = self.criterion(pred, target)
-            # loss = self.criterion(pred, target_onehot)
-            optimizer.zero_grad()
-            loss.backward()  # compute gradient and do SGD step
-            optimizer.step()
+        for e in range(iterations):
+            for i, data in enumerate(train_loader):
+                input = data[0]["data"]
+                target = data[0]["label"].squeeze().long()
+
+                if i % print_frequency == 0:
+                    print('Fine-tuning iteration {}'.format(i))
+                    sys.stdout.flush()
+            
+                target.unsqueeze_(1)
+                target_onehot = torch.FloatTensor(target.shape[0], num_classes)
+                target_onehot.zero_()
+                target_onehot.scatter_(1, target, 1)
+                target.squeeze_(1)
+                input, target = input.cuda(non_blocking=True), target.cuda(non_blocking=True)
+                target_onehot = target_onehot.cuda()    
+
+                pred = model(input)
+                loss = self.criterion(pred, target)
+                # loss = self.criterion(pred, target_onehot)
+                optimizer.zero_grad()
+                loss.backward()  # compute gradient and do SGD step
+                optimizer.step()
+
+            train_loader.reset()
+
 
         fine_tune_end = datetime.datetime.now()
         print ('Fine tune time: {} seconds'.format((fine_tune_end - fine_tune_begin).seconds))
@@ -346,8 +348,10 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         num_samples = .0
         iterations = 0
         with torch.no_grad():
-            for i, (input, target) in enumerate(val_loader):
-                input, target = input.cuda(), target.cuda()
+            for i, data in enumerate(val_loader):
+                input = data[0]["data"].cuda(non_blocking=True)
+                target = data[0]["label"].squeeze().long().cuda(non_blocking=True)
+                # input, target = input.cuda(), target.cuda()
                 pred = model(input)
                 pred = pred.argmax(dim=1)
                 batch_acc = torch.sum(target == pred)
@@ -355,7 +359,7 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
                 num_samples += pred.shape[0]
                 
                 if i % print_frequency == 0:
-                    fns.update_progress(i, len(val_loader))
+                    fns.update_progress(i, 10010)
                     print(' ')
 
                 iterations += 1
@@ -374,5 +378,5 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         return acc/num_samples*100
     
 
-def mobilenet_imagenet(model, input_data_shape, dataset_path, finetune_lr=1e-3):
-    return networkUtils_mobilenet_imagenet(model, input_data_shape, dataset_path, finetune_lr)
+def mobilenet_imagenet_dali(model, input_data_shape, dataset_path, finetune_lr=1e-3):
+    return networkUtils_mobilenet_imagenet_dali(model, input_data_shape, dataset_path, finetune_lr)

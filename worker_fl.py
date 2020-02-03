@@ -8,6 +8,7 @@ import network_utils as networkUtils
 import data_loader as dataLoader
 import numpy as np
 import datetime
+import functools
 
 '''
     Launched by `master.py`
@@ -128,12 +129,13 @@ def worker(args):
     worker_begin = datetime.datetime.now()
 
     # fl tune
-    fl_iter_num = 5
+    fl_iter_num = 10
     fl_model = simplified_model
     best_acc = 0
     group_data_num = [data_loader.get_device_data_size(d) for d in devices]
     # TODO()
-    global_val_loader = data_loader.validation_data_loader_of_devices(devices)
+    global_val_loader = data_loader.get_all_validation_data_loader()
+    #data_loader.validation_data_loader_of_devices(devices)
 
     for fl_iter in range(fl_iter_num):
 
@@ -155,20 +157,18 @@ def worker(args):
             torch.save(fine_tuned_model,
                        os.path.join(args.worker_folder,
                                     common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)))
-            with open(os.path.join(args.worker_folder,
-                                   common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-                      'w') as file_id:
-                file_id.write(str(fine_tuned_accuracy))
-            with open(os.path.join(args.worker_folder,
-                                   common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-                      'w') as file_id:
-                file_id.write(str(simplified_resource))
-                file_id.write("\n")
-                file_id.write(str(latency))
-            with open(os.path.join(args.worker_folder,
-                                   common.WORKER_DEVICE_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-                      'w') as file_id:
-                file_id.write('finished.')
+            # with open(os.path.join(args.worker_folder,
+            #                        common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+            #           'w') as file_id:
+            #     file_id.write(str(fine_tuned_accuracy))
+            # with open(os.path.join(args.worker_folder,
+            #                        common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+            #           'w') as file_id:
+            #     file_id.write(str(simplified_resource))
+            # with open(os.path.join(args.worker_folder,
+            #                        common.WORKER_DEVICE_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
+            #           'w') as file_id:
+            #     file_id.write('finished.')
 
             # release GPU memory
             del fine_tuned_model
@@ -182,10 +182,18 @@ def worker(args):
         fl_model = _model_fusion(args.worker_folder, args.netadapt_iteration, args.block, len(devices), group_data_num)
         # get val accuracy
         fl_acc = network_utils.evaluate(fl_model,global_val_loader)
+        print ("fl acc = {}".format(str(fl_acc)))
         if fl_acc > best_acc:
             best_acc = fl_acc
             torch.save(fl_model, os.path.join(args.worker_folder,
                                  common.WORKER_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)))
+
+    with open(os.path.join(args.worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
+              'w') as file_id:
+        file_id.write(str(fl_acc))
+    with open(os.path.join(args.worker_folder, common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
+            'w') as file_id:
+        file_id.write(str(simplified_resource))
 
 
 
@@ -230,7 +238,6 @@ if __name__ == '__main__':
                         help='dataset: ' +
                         ' | '.join(data_loader_all) +
                         ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
-    
 
     args = arg_parser.parse_args()
 

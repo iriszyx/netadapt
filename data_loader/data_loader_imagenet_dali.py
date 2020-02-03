@@ -14,10 +14,13 @@ import torch.utils.data.sampler as sampler
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import json
+from .utils.imagenet_helper import *
+import io
 
 sys.path.append(os.path.abspath('../'))
 
-from constants import *
+from constants import *    
+
 
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
@@ -32,7 +35,7 @@ class DatasetSplit(Dataset):
         return image, label
 
 
-class dataLoader_imagenet(DataLoaderAbstract):
+class dataLoader_imagenet_dali(DataLoaderAbstract):
 
     batch_size = None
     num_workers = None
@@ -57,26 +60,37 @@ class dataLoader_imagenet(DataLoaderAbstract):
         self.num_workers = 8
 
         # Data loading code
+        # transform = transforms.Compose([
+        #     transforms.RandomResizedCrop(224),
+        #     transforms.RandomHorizontalFlip(),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+        #                          std = [ 0.229, 0.224, 0.225 ]),
+        # ])    
+        # val_transform = transforms.Compose([
+        #     transforms.Scale(256),
+        #     transforms.CenterCrop(224),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
+        #                          std = [ 0.229, 0.224, 0.225 ]),
+        # ])
+        def _tr(im_resize):
+            im_resize = im_resize.convert('RGB')
+            buf = io.BytesIO()
+            im_resize.save(buf, format='JPEG')
+            ret = np.frombuffer(buf.getvalue(), dtype = np.uint8)
+            return ret
+
         transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
-                                 std = [ 0.229, 0.224, 0.225 ]),
-        ])    
-        val_transform = transforms.Compose([
-            transforms.Scale(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean = [ 0.485, 0.456, 0.406 ],
-                                 std = [ 0.229, 0.224, 0.225 ]),
-        ])
+            transforms.Lambda(lambda x: _tr(x)),
+            ])
+        self.dataset_path = dataset_path
 
         traindir = os.path.join(dataset_path, 'train')
         valdir = os.path.join(dataset_path, 'val')
         self.train_dataset = datasets.ImageFolder(traindir, transform)
-        self.val_dataset = datasets.ImageFolder(traindir, val_transform)
-        self.test_dataset = datasets.ImageFolder(valdir, val_transform)
+        self.val_dataset = datasets.ImageFolder(traindir, transform)
+        self.test_dataset = datasets.ImageFolder(valdir, transform)
 
         # train_loader = torch.utils.data.DataLoader(
         #     train, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)        
@@ -152,9 +166,9 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         train_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.train_dataset, self.device_data_idxs[device_idx]), batch_size=self.batch_size, 
-            shuffle=True, num_workers=self.num_workers, pin_memory=True)  
+            shuffle=True, num_workers=self.num_workers, pin_memory=True, collate_fn=collate_fn)
 
-        return train_loader
+        return get_imagenet_iter_dali_with_custom_dataloader(train_loader, self.batch_size, self.num_workers)
 
 
     def validation_data_loader(self, device_idx):
@@ -169,9 +183,9 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.val_dataset, self.device_val_data_idxs[device_idx]), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn)
 
-        return val_loader
+        return get_imagenet_iter_dali_with_custom_dataloader(val_loader, self.batch_size, self.num_workers)
 
     def validation_data_loader_of_devices(self, device_idxs):
         '''
@@ -188,9 +202,9 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
         val_loader = torch.utils.data.DataLoader(
             DatasetSplit(self.val_dataset, array), batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+            num_workers=self.num_workers, pin_memory=True, shuffle=True, collate_fn=collate_fn)
 
-        return val_loader
+        return get_imagenet_iter_dali_with_custom_dataloader(val_loader, self.batch_size, self.num_workers)
 
 
     def dump(self, save_path):
@@ -229,9 +243,8 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
     def get_all_train_data_loader(self):
 
-        train_loader = torch.utils.data.DataLoader(
-            self.train_dataset, batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+        train_loader = get_imagenet_iter_dali(type='train', image_dir=self.dataset_path, batch_size=self.batch_size,
+                                          num_threads=self.num_workers, crop=224, device_id=0, num_gpus=1)
 
         return train_loader
 
@@ -245,18 +258,17 @@ class dataLoader_imagenet(DataLoaderAbstract):
                 `validation_data_loader`: validation data loader for the device 
         '''
 
-        val_loader = torch.utils.data.DataLoader(
-            self.val_dataset, batch_size=self.batch_size, 
-            num_workers=self.num_workers, pin_memory=True, shuffle=True)
+        val_loader = get_imagenet_iter_dali(type='train-val', image_dir=self.dataset_path, batch_size=self.batch_size,
+                                          num_threads=self.num_workers, crop=224, device_id=0, num_gpus=1)
 
         return val_loader
 
     def get_test_data_loader(self):
 
 
-        test_loader = torch.utils.data.DataLoader(
-            self.test_dataset, batch_size=self.batch_size, shuffle=False,
-            num_workers=self.num_workers, pin_memory=True)
+        test_loader = get_imagenet_iter_dali(type='val', image_dir=self.dataset_path, batch_size=self.batch_size,
+                                          num_threads=self.num_workers, crop=224, device_id=0, num_gpus=1)
+
 
         return test_loader
 
@@ -269,6 +281,6 @@ class dataLoader_imagenet(DataLoaderAbstract):
 
 
 
-def imagenet(dataset_path):
-    return dataLoader_imagenet(dataset_path)
+def imagenet_dali(dataset_path):
+    return dataLoader_imagenet_dali(dataset_path)
 
