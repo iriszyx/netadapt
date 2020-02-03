@@ -145,7 +145,8 @@ def worker(args):
             device_begin = datetime.datetime.now()
             device_model = copy.deepcopy(fl_model)
             #TODO(zhaoyx): modify the logic
-            if args.arch == 'mobilenetfed' or args.arch == 'mobilenet_imagenet' or args.arch == 'mobilenet_imagenet_dali':
+            if args.arch in ['mobilenetfed', 'mobilenet_imagenet', 'celebanetfed', 'mobilenet_imagenet_dali']:
+
                 train_loader = data_loader.training_data_loader(devices[i])
                 num_classes = int(common.DATASET_CLASSES_PARAMS[args.dataset])
                 fine_tuned_model = network_utils.fine_tune(device_model, args.short_term_fine_tune_iteration, train_loader, num_classes)
@@ -194,6 +195,13 @@ def worker(args):
     with open(os.path.join(args.worker_folder, common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
             'w') as file_id:
         file_id.write(str(simplified_resource))
+
+
+    print('Remove temp files')
+        for i in range(len(devices)):
+            temp_model_path = os.path.join(args.worker_folder,
+                                    common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i))
+            os.remove(temp_model_path)
 
 
 

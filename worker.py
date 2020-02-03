@@ -88,7 +88,7 @@ def worker(args):
         device_begin = datetime.datetime.now()
         device_model = copy.deepcopy(simplified_model)
         #TODO(zhaoyx): modify the logic
-        if args.arch == 'mobilenetfed' or args.arch == 'mobilenet_imagenet':
+        if args.arch in ['mobilenet_imagenet'] or args.arch.endswith('fed'):
             # for original netadapt
             if args.device_number == 1 and args.group_number == 1:
                 train_loader = data_loader.get_all_train_data_loader()

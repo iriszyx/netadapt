@@ -601,10 +601,10 @@ def master(args):
                 temp_model_path = os.path.join(worker_folder, common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
                 os.remove(temp_model_path)
                 print('Remove', temp_model_path)
-                device_num = group_len[block_idx % len(group_len)]
-                for worker_idx in range(device_num):
-                    temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
-                    os.remove(temp_model_path)
+                # device_num = group_len[block_idx % len(group_len)]
+                # for worker_idx in range(device_num):
+                #     temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
+                #     os.remove(temp_model_path)
                     # print('Remove', temp_model_path)
                 print(' ')
 
