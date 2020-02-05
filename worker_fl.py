@@ -209,9 +209,10 @@ def worker(args):
     with open(os.path.join(args.worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
               'w') as file_id:
         file_id.write(str(fl_acc))
-    with open(os.path.join(args.worker_folder, common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
-            'w') as file_id:
-        file_id.write(str(simplified_resource))
+    if args.need_simplify == 1:
+        with open(os.path.join(args.worker_folder, common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
+                'w') as file_id:
+            file_id.write(str(simplified_resource))
 
 
     print('Remove temp files')
