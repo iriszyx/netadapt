@@ -94,10 +94,10 @@ def worker(args):
     
     network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
     
-    if need_simplify == 1:
+    if args.need_simplify == 1:
         if network_utils.get_num_simplifiable_blocks() <= args.block:
             raise ValueError("Block index >= number of simplifiable blocks")
-            
+
         network_def = network_utils.get_network_def_from_model(model)
         simplified_network_def, simplified_resource = (
             network_utils.simplify_network_def_based_on_constraint(network_def,
