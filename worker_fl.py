@@ -94,6 +94,8 @@ def worker(args):
     
     network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
     
+    best_acc = 0
+
     if args.need_simplify == 1:
         if network_utils.get_num_simplifiable_blocks() <= args.block:
             raise ValueError("Block index >= number of simplifiable blocks")
@@ -110,12 +112,16 @@ def worker(args):
     
     else:
         simplified_model = model
+        with open(os.path.join(args.worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
+                  'r') as file_id:
+            best_acc = float(file_id.read())
 
     print('Original model:')
     print(model)
     print('')
     print('Simplified model:')
     print(simplified_model)
+    print('best acc: {}'.format(str(best_acc)))
 
 
     devices = []
@@ -136,7 +142,7 @@ def worker(args):
     # fl tune
     fl_iter_num = args.round_number
     fl_model = simplified_model
-    best_acc = 0
+
     group_data_num = [data_loader.get_device_data_size(d) for d in devices]
     # TODO()
     global_val_loader = data_loader.get_all_validation_data_loader()
@@ -147,7 +153,7 @@ def worker(args):
         if fl_iter > 0:
             devices = data_loader.group_idxs[random.randint(0,len(data_loader.group_idxs)-1)]
             group_data_num = [data_loader.get_device_data_size(d) for d in devices]
-
+        print('Start iter = '.format(str(fl_iter)))
         for i in range(len(devices)):
             print('Start device ', i)
             device_begin = datetime.datetime.now()
@@ -196,6 +202,7 @@ def worker(args):
             best_acc = fl_acc
             torch.save(fl_model, os.path.join(args.worker_folder,
                                  common.WORKER_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)))
+        print('End iter = '.format(str(fl_iter)))
 
     with open(os.path.join(args.worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
               'w') as file_id:
