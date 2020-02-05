@@ -208,7 +208,7 @@ def worker(args):
 
     with open(os.path.join(args.worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
               'w') as file_id:
-        file_id.write(str(fl_acc))
+        file_id.write(str(best_acc))
     if args.need_simplify == 1:
         with open(os.path.join(args.worker_folder, common.WORKER_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block)),
                 'w') as file_id:
