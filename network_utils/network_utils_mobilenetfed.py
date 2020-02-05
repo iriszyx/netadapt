@@ -151,7 +151,12 @@ class networkUtils_mobilenetfed(NetworkUtilsAbstract):
         # for i in range(self.device_number):
         #     self.dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
         #     all_idxs = list(set(all_idxs) - self.dict_users[i])
-        
+    def adjust_learning_rate(self, epoch):
+        """Sets the learning rate to the initial LR decayed by 10 every 10 epochs"""
+        self.finetune_lr = self.finetune_lr * (0.1 ** (epoch // 10))
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = self.finetune_lr
+        print('learning rate: ', self.finetune_lr)
 
     def _get_layer_by_param_name(self, model, param_name):
         '''
