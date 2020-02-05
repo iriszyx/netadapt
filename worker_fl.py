@@ -94,18 +94,22 @@ def worker(args):
     
     network_utils = networkUtils.__dict__[args.arch](model, args.input_data_shape, args.dataset_path, args.finetune_lr)
     
-    if network_utils.get_num_simplifiable_blocks() <= args.block:
-        raise ValueError("Block index >= number of simplifiable blocks")
+    if need_simplify == 1:
+        if network_utils.get_num_simplifiable_blocks() <= args.block:
+            raise ValueError("Block index >= number of simplifiable blocks")
+            
+        network_def = network_utils.get_network_def_from_model(model)
+        simplified_network_def, simplified_resource = (
+            network_utils.simplify_network_def_based_on_constraint(network_def,
+                                                                   args.block,
+                                                                   args.constraint,
+                                                                   args.resource_type,
+                                                                   args.lookup_table_path))
+        # Choose the filters.
+        simplified_model = network_utils.simplify_model_based_on_network_def(simplified_network_def, model)
     
-    network_def = network_utils.get_network_def_from_model(model)
-    simplified_network_def, simplified_resource = (
-        network_utils.simplify_network_def_based_on_constraint(network_def,
-                                                               args.block,
-                                                               args.constraint,
-                                                               args.resource_type,
-                                                               args.lookup_table_path))    
-    # Choose the filters.
-    simplified_model = network_utils.simplify_model_based_on_network_def(simplified_network_def, model)
+    else:
+        simplified_model = model
 
     print('Original model:')
     print(model)
@@ -252,6 +256,7 @@ if __name__ == '__main__':
                         ' | '.join(data_loader_all) +
                         ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
 
+    arg_parser.add_argument('need_simplify', type=int, default=1, help='If need simplify the network or not.')
     args = arg_parser.parse_args()
 
     # Launch a worker.

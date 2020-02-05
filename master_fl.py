@@ -59,10 +59,11 @@ data_loader_all = sorted(name for name in dataLoader.__dict__
 
 topk_block_num = 4
 
+
 def _launch_worker(master_folder,
                    worker_folder, model_path, block, resource_type, constraint, netadapt_iteration,
                    short_term_fine_tune_iteration, input_data_shape, job_list, available_gpus, 
-                   lookup_table_path, dataset_path, model_arch, round_number):
+                   lookup_table_path, dataset_path, model_arch, round_number, need_simplify):
     '''
         `master.py` launches several `worker.py`.
         Each `worker.py` prunes one specific block and fine-tune it.
@@ -101,7 +102,7 @@ def _launch_worker(master_folder,
                         str(constraint), str(netadapt_iteration), str(short_term_fine_tune_iteration), str(gpu),
                         lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] +\
                         [str(args.finetune_lr)] +\
-                        [str(args.device_number)] + [str(args.group_number)] + [str(round_number)] + [str(args.dataset)]
+                        [str(args.device_number)] + [str(args.group_number)] + [str(round_number)] + [str(args.dataset)]+[str(need_simplify)]
 
 
         
@@ -585,7 +586,7 @@ def master(args):
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch, 2)
+                                                      args.dataset_path, args.arch, 2, 1)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
@@ -615,12 +616,14 @@ def master(args):
                 job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
 
         #     # Launch a worker.
+            model_path = os.path.join(worker_folder,
+                                 common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
             job_list, available_gpus = _launch_worker(master_folder,
-                                                      worker_folder, current_model_path, block_idx, args.resource_type,
+                                                      worker_folder, model_path, block_idx, args.resource_type,
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch, args.round_number)
+                                                      args.dataset_path, args.arch, args.round_number, 0)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
