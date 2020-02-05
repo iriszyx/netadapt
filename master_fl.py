@@ -57,11 +57,12 @@ data_loader_all = sorted(name for name in dataLoader.__dict__
     if name.islower() and not name.startswith("__")
     and callable(dataLoader.__dict__[name]))
 
+topk_block_num = 4
 
 def _launch_worker(master_folder,
                    worker_folder, model_path, block, resource_type, constraint, netadapt_iteration,
                    short_term_fine_tune_iteration, input_data_shape, job_list, available_gpus, 
-                   lookup_table_path, dataset_path, model_arch):
+                   lookup_table_path, dataset_path, model_arch, round_number):
     '''
         `master.py` launches several `worker.py`.
         Each `worker.py` prunes one specific block and fine-tune it.
@@ -100,7 +101,7 @@ def _launch_worker(master_folder,
                         str(constraint), str(netadapt_iteration), str(short_term_fine_tune_iteration), str(gpu),
                         lookup_table_path, dataset_path] + [str(e) for e in input_data_shape] + [model_arch] +\
                         [str(args.finetune_lr)] +\
-                        [str(args.device_number)] + [str(args.group_number)] + [str(args.dataset)]
+                        [str(args.device_number)] + [str(args.group_number)] + [str(round_number)] + [str(args.dataset)]
 
 
         
@@ -114,7 +115,7 @@ def _launch_worker(master_folder,
     return updated_job_list, updated_available_gpus
 
 
-def _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus):
+def _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks):
     '''
         update job list and available gpu list based on whether a worker finishes pruning and fine-tuning.
         
@@ -134,10 +135,22 @@ def _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
                                                                                                     job[_KEY_BLOCK]))):
             # Find corresponding finish file of worker
             updated_available_gpus.append(job[_KEY_GPU])
+            is_acc = 0
+            for acc, idx in topk_blocks:
+                if idx == job[_KEY_BLOCK] and acc > 0:
+                    is_acc = 1
+                    break
+            if is_acc != 0:
+                continue
+            with open(os.path.join(worker_folder, common.WORKER_ACCURACY_FILENAME_TEMPLATE.format(job[_KEY_ITERATION], 
+                                                                                                  job[_KEY_BLOCK])),
+                  'r') as file_id:
+                accuracy = float(file_id.read())
+                topk_blocks[job[_KEY_BLOCK]] = (accuracy, job[_KEY_BLOCK])
         else:
             updated_job_list.append(job)
 
-    return updated_job_list, updated_available_gpus
+    return updated_job_list, updated_available_gpus, topk_blocks
 
 
 def _find_best_model(worker_folder, iteration, num_blocks, starting_accuracy, starting_resource):
@@ -391,7 +404,7 @@ def master(args):
 
 
     # Get available GPUs.
-    available_gpus = args.gpus
+    available_gpus = args.gpus + args.gpus
     if len(available_gpus) == 0:
         raise ValueError('At least one gpu must be specified.')
 
@@ -402,13 +415,19 @@ def master(args):
             history = pickle.load(file_id)
         args = history[_KEY_MASTER_ARGS]
         args.max_iters = old_args.max_iters
+        args.round_number = old_args.round_number
 
         # Initialize variables.
-        current_iter = len(history[_KEY_HISTORY]) - 1
+        current_iter = len(history[_KEY_HISTORY]) - 1 - 5
         current_resource = history[_KEY_HISTORY][-1][_KEY_RESOURCE]
         current_model_path = os.path.join(master_folder,
                                           common.MASTER_MODEL_FILENAME_TEMPLATE.format(current_iter))
         current_accuracy = history[_KEY_HISTORY][-1][_KEY_ACCURACY]
+        # current_iter = 5
+        # current_resource = history[_KEY_HISTORY][current_iter][_KEY_RESOURCE]
+        # current_model_path = os.path.join(master_folder,
+        #                                   common.MASTER_MODEL_FILENAME_TEMPLATE.format(current_iter))
+        # current_accuracy = history[_KEY_HISTORY][current_iter][_KEY_ACCURACY]
 
         # Get the network utils.
         model = torch.load(current_model_path, map_location=lambda storage, loc: storage)
@@ -548,15 +567,17 @@ def master(args):
 
         # Launch the workers.
         job_list = []
-        
+
+        print('Launch worker for each block')
+        topk_blocks = [(0,i) for i in range(network_utils.get_num_simplifiable_blocks())]
         # # Launch worker for each block
         for block_idx in range(network_utils.get_num_simplifiable_blocks()):
             # Check and update the gpu availability.
-            job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
+            job_list, available_gpus, topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks)
             while not available_gpus:
                 # print('  Wait for the next available gpu...')
                 time.sleep(_SLEEP_TIME)
-                job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
+                job_list, available_gpus, topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks)
 
         #     # Launch a worker.
             job_list, available_gpus = _launch_worker(master_folder,
@@ -564,15 +585,51 @@ def master(args):
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch)
+                                                      args.dataset_path, args.arch, 2)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
         # # Wait until all the workers finish.
-        job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
+        job_list, available_gpus, topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks)
         while job_list:
             time.sleep(_SLEEP_TIME)
-            job_list, available_gpus = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus)
+            job_list, available_gpus, topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks)
+
+        # 20190203
+        print('Launch worker for topk block')
+        topk_blocks.sort(key=lambda x: x[0],reverse = True)
+        print(topk_blocks)
+        topk_blocks = topk_blocks[:topk_block_num]
+        print(topk_blocks)
+
+        # # Launch worker for each block
+        for a, block_idx in topk_blocks:
+            finish_path = os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(current_iter,
+                                                                                                    block_idx))
+            os.remove(finish_path)
+            # Check and update the gpu availability.
+            job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
+            while not available_gpus:
+                # print('  Wait for the next available gpu...')
+                time.sleep(_SLEEP_TIME)
+                job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
+
+        #     # Launch a worker.
+            job_list, available_gpus = _launch_worker(master_folder,
+                                                      worker_folder, current_model_path, block_idx, args.resource_type,
+                                                      target_resource, current_iter,
+                                                      args.short_term_fine_tune_iteration, args.input_data_shape,
+                                                      job_list, available_gpus, args.lookup_table_path,
+                                                      args.dataset_path, args.arch, args.round_number)
+            print('Update job list:     ', job_list)
+            print('Update available gpu:', available_gpus, '\n')
+
+        # # Wait until all the workers finish.
+        job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
+        while job_list:
+            time.sleep(_SLEEP_TIME)
+            job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
+        # 20190203
 
         # Find the best model.
         best_accuracy, best_model_path, best_resource, best_block = (
@@ -700,6 +757,8 @@ if __name__ == '__main__':
                         ' (default: cifar10). Defines which dataset is used. If you want to use your own dataset, please specify here.')
     arg_parser.add_argument('-gn', '--group_number', type=int, default=13, 
                             help='Group number.')
+    arg_parser.add_argument('-rn', '--round_number', type=int, default=10, 
+                            help='Round number for top k worker.')
 
     print(network_utils_all)
     

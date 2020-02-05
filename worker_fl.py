@@ -9,6 +9,7 @@ import data_loader as dataLoader
 import numpy as np
 import datetime
 import functools
+import random
 
 '''
     Launched by `master.py`
@@ -129,7 +130,7 @@ def worker(args):
     worker_begin = datetime.datetime.now()
 
     # fl tune
-    fl_iter_num = 10
+    fl_iter_num = args.round_number
     fl_model = simplified_model
     best_acc = 0
     group_data_num = [data_loader.get_device_data_size(d) for d in devices]
@@ -138,7 +139,10 @@ def worker(args):
     #data_loader.validation_data_loader_of_devices(devices)
 
     for fl_iter in range(fl_iter_num):
-
+        # random select a group since second iteration
+        if fl_iter > 0:
+            devices = data_loader.group_idxs[random.randint(0,len(data_loader.group_idxs)-1)]
+            group_data_num = [data_loader.get_device_data_size(d) for d in devices]
 
         for i in range(len(devices)):
             print('Start device ', i)
@@ -198,10 +202,10 @@ def worker(args):
 
 
     print('Remove temp files')
-        for i in range(len(devices)):
-            temp_model_path = os.path.join(args.worker_folder,
-                                    common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i))
-            os.remove(temp_model_path)
+    for i in range(len(devices)):
+        temp_model_path = os.path.join(args.worker_folder,
+                                common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i))
+        os.remove(temp_model_path)
 
 
 
@@ -241,6 +245,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('finetune_lr', type=float, default=0.001, help='short-term fine-tune learning rate')
     arg_parser.add_argument('device_number', type=int, default=10, help='number of devices total')
     arg_parser.add_argument('group_number', type=int, default=3, help='Group number.')
+    arg_parser.add_argument('round_number', type=int, default=10, help='Round number.')
     arg_parser.add_argument('dataset',  default='cifar10', 
                         choices=data_loader_all,
                         help='dataset: ' +
