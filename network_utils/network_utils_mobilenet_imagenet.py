@@ -113,6 +113,7 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         self.momentum = 0.9
         self.weight_decay = 1e-4
         self.finetune_lr = finetune_lr
+        self.start_finetune_lr = finetune_lr
         
         # train_dataset = datasets.CIFAR10(root=dataset_path, train=True, download=True,
         # transform=transforms.Compose([
@@ -154,8 +155,8 @@ class networkUtils_mobilenet_imagenet(NetworkUtilsAbstract):
         #     all_idxs = list(set(all_idxs) - self.dict_users[i])
         
     def adjust_learning_rate(self, epoch):
-        """Sets the learning rate to the initial LR decayed by 10 every 10 epochs"""
-        self.finetune_lr = self.finetune_lr * (0.1 ** (epoch // 10))
+        """Sets the learning rate to the initial LR decayed by 10 every 15 epochs"""
+        self.finetune_lr = self.start_finetune_lr * (0.1 ** (epoch // 10))
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.finetune_lr
         print('learning rate: ', self.finetune_lr)
