@@ -417,18 +417,14 @@ def master(args):
         args = history[_KEY_MASTER_ARGS]
         args.max_iters = old_args.max_iters
         args.round_number = old_args.round_number
+        args.pre_round_number = old_args.pre_round_number
 
         # Initialize variables.
-        current_iter = len(history[_KEY_HISTORY]) - 1 - 5
+        current_iter = len(history[_KEY_HISTORY]) - 1 
         current_resource = history[_KEY_HISTORY][-1][_KEY_RESOURCE]
         current_model_path = os.path.join(master_folder,
                                           common.MASTER_MODEL_FILENAME_TEMPLATE.format(current_iter))
-        current_accuracy = history[_KEY_HISTORY][-1][_KEY_ACCURACY]
-        # current_iter = 5
-        # current_resource = history[_KEY_HISTORY][current_iter][_KEY_RESOURCE]
-        # current_model_path = os.path.join(master_folder,
-        #                                   common.MASTER_MODEL_FILENAME_TEMPLATE.format(current_iter))
-        # current_accuracy = history[_KEY_HISTORY][current_iter][_KEY_ACCURACY]
+        current_accuracy = history[_KEY_HISTORY][-1][_KEY_ACCURACY]      
 
         # Get the network utils.
         model = torch.load(current_model_path, map_location=lambda storage, loc: storage)
@@ -456,6 +452,10 @@ def master(args):
         device_data_idxs = data_loader.device_data_idxs
         group_idxs = data_loader.group_idxs
         group_len = [len(group_idxs[i]) for i in range(len(group_idxs))]
+
+        save_path = os.path.join(master_folder, 
+                                 common.MASTER_DATALOADER_FILENAME_TEMPLATE.format(args.dataset))
+        data_loader.dump(save_path)    
 
         
     else:
@@ -572,6 +572,7 @@ def master(args):
         print('Launch worker for each block')
         topk_blocks = [(0,i) for i in range(network_utils.get_num_simplifiable_blocks())]
         # # Launch worker for each block
+        
         for block_idx in range(network_utils.get_num_simplifiable_blocks()):
             # Check and update the gpu availability.
             job_list, available_gpus, topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus, topk_blocks)
@@ -586,7 +587,7 @@ def master(args):
                                                       target_resource, current_iter,
                                                       args.short_term_fine_tune_iteration, args.input_data_shape,
                                                       job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch, 2, 1)
+                                                      args.dataset_path, args.arch, args.pre_round_number, 1)
             print('Update job list:     ', job_list)
             print('Update available gpu:', available_gpus, '\n')
 
@@ -603,36 +604,37 @@ def master(args):
         topk_blocks = topk_blocks[:topk_block_num]
         print(topk_blocks)
 
-        # # Launch worker for each block
-        for a, block_idx in topk_blocks:
-            finish_path = os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(current_iter,
-                                                                                                    block_idx))
-            os.remove(finish_path)
-            # Check and update the gpu availability.
+        if args.round_number > 0:   
+            # # Launch worker for each block
+            for a, block_idx in topk_blocks:
+                finish_path = os.path.join(worker_folder, common.WORKER_FINISH_FILENAME_TEMPLATE.format(current_iter,
+                                                                                                        block_idx))
+                os.remove(finish_path)
+                # Check and update the gpu availability.
+                job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
+                while not available_gpus:
+                    # print('  Wait for the next available gpu...')
+                    time.sleep(_SLEEP_TIME)
+                    job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks) 
+
+            #     # Launch a worker.
+                model_path = os.path.join(worker_folder,
+                                     common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
+                job_list, available_gpus = _launch_worker(master_folder,
+                                                          worker_folder, model_path, block_idx, args.resource_type,
+                                                          target_resource, current_iter,
+                                                          args.short_term_fine_tune_iteration, args.input_data_shape,
+                                                          job_list, available_gpus, args.lookup_table_path,
+                                                          args.dataset_path, args.arch, args.round_number, 0)
+                print('Update job list:     ', job_list)
+                print('Update available gpu:', available_gpus, '\n')    
+
+            # # Wait until all the workers finish.
             job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
-            while not available_gpus:
-                # print('  Wait for the next available gpu...')
+            while job_list:
                 time.sleep(_SLEEP_TIME)
                 job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
-
-        #     # Launch a worker.
-            model_path = os.path.join(worker_folder,
-                                 common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
-            job_list, available_gpus = _launch_worker(master_folder,
-                                                      worker_folder, model_path, block_idx, args.resource_type,
-                                                      target_resource, current_iter,
-                                                      args.short_term_fine_tune_iteration, args.input_data_shape,
-                                                      job_list, available_gpus, args.lookup_table_path,
-                                                      args.dataset_path, args.arch, args.round_number, 0)
-            print('Update job list:     ', job_list)
-            print('Update available gpu:', available_gpus, '\n')
-
-        # # Wait until all the workers finish.
-        job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
-        while job_list:
-            time.sleep(_SLEEP_TIME)
-            job_list, available_gpus,topk_blocks = _update_job_list_and_available_gpus(worker_folder, job_list, available_gpus,topk_blocks)
-        # 20190203
+            # 20190203
 
         # Find the best model.
         best_accuracy, best_model_path, best_resource, best_block = (
@@ -661,11 +663,6 @@ def master(args):
                 temp_model_path = os.path.join(worker_folder, common.WORKER_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx))
                 os.remove(temp_model_path)
                 print('Remove', temp_model_path)
-                # device_num = group_len[block_idx % len(group_len)]
-                # for worker_idx in range(device_num):
-                #     temp_model_path = os.path.join(worker_folder, common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(current_iter, block_idx, worker_idx))
-                #     os.remove(temp_model_path)
-                    # print('Remove', temp_model_path)
                 print(' ')
 
         # the running time for this iteration (simulation)
@@ -762,6 +759,9 @@ if __name__ == '__main__':
                             help='Group number.')
     arg_parser.add_argument('-rn', '--round_number', type=int, default=10, 
                             help='Round number for top k worker.')
+    
+    arg_parser.add_argument('-prn', '--pre_round_number', type=int, default=2, 
+                            help='Round number for all workers.')    
 
     print(network_utils_all)
     

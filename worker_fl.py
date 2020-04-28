@@ -31,6 +31,7 @@ data_loader_all = sorted(name for name in dataLoader.__dict__
 def _fed_avg(w, data_num):
     if hasattr(torch.cuda, 'empty_cache'):
         torch.cuda.empty_cache()
+    
     w_avg = {k: [torch.mul(w[i][k], data_num[i]).cpu() for i in range(len(w))] for k in w[0]}
     w_avg = {k: functools.reduce(lambda x,y: x + y, w_avg[k]) / np.sum(data_num) for k in w_avg}
   
@@ -154,7 +155,7 @@ def worker(args):
             devices = data_loader.group_idxs[random.randint(0,len(data_loader.group_idxs)-1)]
             group_data_num = [data_loader.get_device_data_size(d) for d in devices]
         print('Start iter = {}'.format(str(fl_iter)))
-        network_utils.adjust_learning_rate(fl_iter+2)
+        # network_utils.adjust_learning_rate(fl_iter+2)
 
         for i in range(len(devices)):
             print('Start device ', i)
@@ -174,18 +175,6 @@ def worker(args):
             torch.save(fine_tuned_model,
                        os.path.join(args.worker_folder,
                                     common.WORKER_DEVICE_MODEL_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)))
-            # with open(os.path.join(args.worker_folder,
-            #                        common.WORKER_DEVICE_ACCURACY_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-            #           'w') as file_id:
-            #     file_id.write(str(fine_tuned_accuracy))
-            # with open(os.path.join(args.worker_folder,
-            #                        common.WORKER_DEVICE_RESOURCE_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-            #           'w') as file_id:
-            #     file_id.write(str(simplified_resource))
-            # with open(os.path.join(args.worker_folder,
-            #                        common.WORKER_DEVICE_FINISH_FILENAME_TEMPLATE.format(args.netadapt_iteration, args.block, i)),
-            #           'w') as file_id:
-            #     file_id.write('finished.')
 
             # release GPU memory
             del fine_tuned_model
